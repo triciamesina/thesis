@@ -128,6 +128,8 @@ BYTE volume;
 FRESULT res;
 void PassDirectory(const char choice);
 FRESULT read_contents (char* path);
+FRESULT rename (const TCHAR* oldname, const TCHAR* newname);
+FILINFO Finfo;
 void BTINIT(void);
 void GetBTCommand(const char character);
 void CheckStatus(const char choice);
@@ -138,6 +140,23 @@ extern BYTE CurrentPort;
 
 #define USB_MAX_DEVICES 5
 #define MAX_ALLOWED_CURRENT	(500)
+
+static
+void put_rc (FRESULT rc)
+{
+	const char *str =
+		"OK\0" "DISK_ERR\0" "INT_ERR\0" "NOT_READY\0" "NO_FILE\0" "NO_PATH\0"
+		"INVALID_NAME\0" "DENIED\0" "EXIST\0" "INVALID_OBJECT\0" "WRITE_PROTECTED\0"
+		"INVALID_DRIVE\0" "NOT_ENABLED\0" "NO_FILE_SYSTEM\0" "MKFS_ABORTED\0" "TIMEOUT\0"
+		"LOCKED\0" "NOT_ENOUGH_CORE\0" "TOO_MANY_OPEN_FILES\0";
+	FRESULT i;
+
+	for (i = 0; i != rc && *str; i++) {
+		while (*str++) ;
+	}
+	DBPRINTF("rc=%u FR_%s\n", (UINT)rc, str);
+}
+
 
 int main(void)
 {
@@ -171,15 +190,15 @@ int main(void)
 
 	// Initialize variables
     HubAttached = FALSE;
-	MSD1Attached = 0;
-	MSD2Attached = 0;
-	MSD3Attached = 0;
-	MSD4Attached = 0;
-	MSDAttached = 0;
-	MSD1Mounted = 0;
-	MSD2Mounted = 0;
-	MSD3Mounted = 0;
-	MSD4Mounted = 0;
+	MSD1Attached = NULL;
+	MSD2Attached = NULL;
+	MSD3Attached = NULL;
+	MSD4Attached = NULL;
+	MSDAttached = NULL;
+	MSD1Mounted = NULL;
+	MSD2Mounted = NULL;
+	MSD3Mounted = NULL;
+	MSD4Mounted = NULL;
     
     //Initialize the stack
     USBInitialize(0);
@@ -516,6 +535,36 @@ FRESULT read_contents (
     return res;
 }
 
+/*-----------------------------------------------------------------------*/
+/* Rename file/directory                                                 */
+/*-----------------------------------------------------------------------*/
+FRESULT rename (
+const TCHAR *oldname,
+const TCHAR *newname
+	)
+{
+    while ();
+    {
+    oldname = Finfo.fname;
+        
+	while (*oldname == ' ') oldname++;
+	newname = strchr(oldname, ' ');
+	if (!newname) break;
+	*newname++ = 0;
+	while (*newname == ' ') newname++;
+	put_rc(f_rename(oldname, newname));
+	break;
+}   
+}
+    
+/*FRESULT delete (const path)
+{
+    
+    while (*fno == ' ') fno++;
+	put_rc(f_unlink(fno));
+	break;
+}*/
+  
 // UART SECTION
 
 void BTINIT (void) {
