@@ -88,7 +88,7 @@
     #endif
 #elif defined( __PIC32MX__ )
     #pragma config UPLLEN   = ON            // USB PLL Enabled
-    #pragma config FPLLMUL  = MUL_20        // PLL Multiplier
+    #pragma config FPLLMUL  = MUL_15        // PLL Multiplier
     #pragma config UPLLIDIV = DIV_2         // USB PLL Input Divider
     #pragma config FPLLIDIV = DIV_2         // PLL Input Divider
     #pragma config FPLLODIV = DIV_1         // PLL Output Divider
@@ -105,7 +105,7 @@
     #pragma config BWP      = OFF           // Boot Flash Write Protect
     #pragma config PWP      = OFF           // Program Flash Write Protect
     #pragma config ICESEL   = ICS_PGx2      // ICE/ICD Comm Channel Select
-    #pragma config DEBUG    = OFF            // Background Debugger Enable
+    #pragma config DEBUG    = ON            // Background Debugger Enable
 
 #else
 
@@ -114,124 +114,103 @@
 
 #endif
 
-// CONSTANTS
-
+#define UART_MODULE_ID_1 UART1  // PIM is connected to Explorer through UART1 module
 #define UART_MODULE_ID_2 UART2 // PIM is connected to Explorer through UART2 module
-#define DESIRED_BAUDRATE (9600) // The desired BaudRate
+#define DESIRED_BAUDRATE (9600) //The desired BaudRate
 #define _MAX_FILENAME 13
 #define _MAX_PATHNAME 15
-#define _MAX_DIR_ENTRIES 50
-#define _MAX_SELECTION 15
-#define USB_MAX_DEVICES 5
-#define MAX_ALLOWED_CURRENT	(500)
-
-// MACRO DEFINITION
-#define FILETIME_MS(x) ((x)/(SYS_FREQ/2000))
-
-// STRUCT TYPEDEF
-
-typedef struct _select_fn {
-
-	int drv;
-	const char root[3];
-	const char selectfile[_MAX_FILENAME];
-	const char selectpath[_MAX_PATHNAME];
-	const char dest[3][3];
-	const char destpaths[3][_MAX_PATHNAME];
-
-} select_fn; 
-/*
-typedef struct _directory_list {
-	
-	const char dirfiles[_MAX_DIR_ENTRIES][_MAX_FILENAME];
-	const char dirpath[_MAX_DIR_ENTRIES][_MAX_PATHNAME];
-
-} directory_list;
-*/
-typedef struct _list_buffer {
-
-	int src; // source drive
-	const char srcroot[3]; // source root directory
-	const char srcfile[_MAX_FILENAME]; // source filename
-	const char srcpath[_MAX_PATHNAME]; // source pathname
-	const char destdrv[3][3];
-
-} list_buffer;
     
 // GLOBAL VARIABLES
 BOOL HubAttached;  // flag if hub device is attached
-BYTE DeviceNumber;
-USB_EVENT event; // application event handler value
-BYTE HubStatus; // hub status
+BYTE DeviceNumber;  
+USB_EVENT event;
+BYTE HubStatus;
 BYTE MSDAttached, MSD1Attached, MSD2Attached, MSD3Attached, MSD4Attached;	// MSD Device attached flag
 BYTE MSD1Mounted, MSD2Mounted, MSD3Mounted, MSD4Mounted; // MSD Mount flag
-BYTE volume; // MSD logical drive
-//const char root[3]; // source root volume
-//const char fn[_MAX_FILENAME]; // selected filename
-//const char destpath[3][_MAX_PATHNAME]; // destination pathname
+BYTE deviceAddress[_VOLUMES];
+BYTE volume;
+const char root[3]; // source root volume
+const char fn[_MAX_FILENAME]; // selected filename
+const char destpath[_MAX_PATHNAME]; // destination pathname
+const char destipath[10][_MAX_PATHNAME]; // destination pathname
 int USB1Selected = 0;
 int USB2Selected = 0;
 int USB3Selected = 0;
 int USB4Selected = 0;
-//char selectfile[_MAX_SELECTION][_MAX_FILENAME]; // copy filename selection array
-//char selectpath[_MAX_SELECTION][_MAX_PATHNAME]; // copy pathname selection array
+char selectfile[10][_MAX_FILENAME]; // copy filename selection array
+char selectpath[10][_MAX_PATHNAME]; // copy pathname selection array
 int k = 0; // filename selection array index
 int m = 0; // pathname selection array index
-int d = 0; // destination drive array index
 int copying = 0; // copy in progress flag
-char rxstring[_MAX_FILENAME]; // receive string buffer
-char namebuff[_MAX_FILENAME] = ""; // new name buffer
+char rxstring[_MAX_FILENAME];
 int s = 0;
+char namebuff[_MAX_FILENAME] = "";
 int RXdone = 0; // receive string done flag
+int RXnewname = 0; // receive newname string done flag
 int renaming = 0; // rename flag
-char newname[_MAX_FILENAME]; // new name
-char oldname[_MAX_PATHNAME]; // old name
+char newname[_MAX_FILENAME]; // copy filename selection array
+char oldname[_MAX_PATHNAME]; // copy pathname selection array
 char ext[5]; // filename extension
-unsigned long int StartCount, FileTime; // Core timer values
-const char destdrv[3][3]; // destination drive directory
-select_fn selection[_MAX_SELECTION]; //selected filenames
-char dirfiles1[_MAX_DIR_ENTRIES][_MAX_FILENAME]; // loaded directory files
-char dirfiles2[_MAX_DIR_ENTRIES][_MAX_FILENAME]; // loaded directory files
-char dirfiles3[_MAX_DIR_ENTRIES][_MAX_FILENAME]; // loaded directory files
-char dirfiles4[_MAX_DIR_ENTRIES][_MAX_FILENAME]; // loaded directory files
-extern BYTE CurrentPort;
-//directory_list directory[4];
-list_buffer listbuff;
+unsigned long int StartCount, FileTime;
 
 // FUNCTION PROTOTYPES
-FRESULT read_contents (char *path, int drv);
-void SYSTEMINIT(void);
-void PININIT(void);
+void PassDirectory(const char choice);
+FRESULT read_contents (char *path);
 void BTINIT(void);
-void SPIINIT(void);
 void GetBTCommand(const char character);
+void CheckStatus(const char choice);
+void BTfunctions(const char select);
+UINT32 GetMenuChoice(void);
 void SendDataBuffer(const char *buffer, UINT32 size);
+extern BYTE CurrentPort;
+void TestPutFile(void);
 void WriteString(const char *string);
 char *findfilename (char* path, int index);
+void WriteString(const char *string);
 void PutCharacter(const char character);
 void PutInteger(unsigned int integer);
+FRESULT f_copy (const char sourcename[_MAX_PATHNAME], const char destname[_MAX_PATHNAME]);
 void ClearSelection(void);
-void ClearBuffer(void);
-void ClearDestination(void);
 char UART_RxString(const char character);
-void PutChar(const char character);
-unsigned int writeSPI1(unsigned int a);
+
+// CONSTANTS
+#define USB_MAX_DEVICES 5
+#define MAX_ALLOWED_CURRENT	(500)
+
+
 
 int main(void)
 {
     int i;
     FATFS fatfs[_VOLUMES];
     FRESULT res;
+	/**
+    #if defined(__PIC32MX__)
+        {
+            int  value;
+    
+            value = SYSTEMConfigWaitStatesAndPB( GetSystemClock() );
+    
+            // Enable the cache for the best performance
+            CheKseg0CacheOn();
+    
+            INTEnableSystemMultiVectoredInt();
+    
+            value = OSCCON;
+            while (!(value & 0x00000020))
+            {
+                value = OSCCON;    // Wait for PLL lock to stabilize
+            }
+        }
+			DBINIT();
 
-	// INITIALIZE SYSTEM
+    #endif
+	****/
 
-	SYSTEMINIT();	// Initialize system
-	PININIT();		// Initialize digital outputs
-	SPIINIT();		// Initialize SPI1 channel
-	BTINIT();		// Initialize UART2
-	DBINIT();		// Initialize debug functions
+	BTINIT();
+	DBINIT();
 
-	// INITIALIZE VARIABLES
+	// Initialize variables
     HubAttached = FALSE;
 	MSD1Attached = 0;
 	MSD2Attached = 0;
@@ -243,80 +222,105 @@ int main(void)
 	MSD3Mounted = 0;
 	MSD4Mounted = 0;
     
-    // INITIALIZE USB STACK
+    //Initialize the stack
     USBInitialize(0);
+    
+    #if defined(DEBUG_MODE)
+        // PPS - Configure U2RX - put on pin 49 (RP10)
+        RPINR19bits.U2RXR = 10;
 
-	// ENABLE JTAG DEBUGGER
+        // PPS - Configure U2TX - put on pin 50 (RP17)
+        RPOR8bits.RP17R = 5;
+
+//        UART2Init();
+    #endif
 	mJTAGPortEnable(1);
 
     while(1) {
+        
+	// 	DBPRINTF("USB FILE TRANSFER HUB\n\n\n");
 
 		DeviceNumber = 0;
+		for (i=0; i<_VOLUMES;i++) {
+			deviceAddress[i] = 0;
+		}
 
         //USB stack process function
         USBTasks(0);
             
-        //Detect hub attached
+        //if no hub and msd devices are plugged in
         while (!USBHostHubDeviceDetect(1)) {
+		//	DBPRINTF("deviceAddress = %x\n", deviceAddress);
             USBTasks(0);
         } 
 
-        //Hub device is detected
+        //if hub is plugged in
         if(USBHostHubDeviceDetect(1)) {
             HubAttached = TRUE;
             event = EVENT_HUB_ATTACH;
+           // DBPRINTF("Hub Device Attached\n");
+                //Just sit here until the device is removed.
                 while(HubAttached == TRUE) {
                     USBTasks(0);
 					if (MSDAttached) {
 
-					// Device attached in Port 1
-					if ((MSD1Mounted == 0) && (MSD1Attached == 1)) {
+					 if ((MSD1Mounted == 0) && (MSD1Attached == 1)) {
 						if (USBHostMSDSCSIMediaDetect(0)) {
+				//		DBPRINTF("MSD Device Attached in Port 1\n");
 						volume = 0;
 						res = f_mount(volume, &fatfs[volume]);
 							if (res == FR_OK) {
-								writeSPI1(8);
-								MSD1Mounted = 1;
+							//	DBPRINTF("%x: USB1 Mounted\n", volume);
+								PutCharacter('A');
 							} // if res
+						MSD1Mounted = 1;
+					//	DBPRINTF("0:/%s\n", findfilename("0:", 1));
 						}
-					}
+						}
 
-					// Device attached in Port 2
-					if ((MSD2Mounted == 0) && (MSD2Attached == 1)) {
+					 else if ((MSD2Mounted == 0) && (MSD2Attached == 1)) {
 						if (USBHostMSDSCSIMediaDetect(1)) {
+					//	DBPRINTF("MSD Device Attached in Port 2\n");
 						volume = 1;
 						res = f_mount(volume, &fatfs[volume]);
 							if (res == FR_OK) {
-								writeSPI1(8);
-								MSD2Mounted = 1;
+							//	DBPRINTF("%x: USB2 Mounted\n", volume);
+								PutCharacter('B');
 							} // if res
+						MSD2Mounted = 1;
 						}
-					}
+						}
 
-					// Device attached in Port 3
-					if ((MSD3Mounted == 0) && (MSD3Attached == 1)) {
+					 else if ((MSD3Mounted == 0) && (MSD3Attached == 1)) {
 						if (USBHostMSDSCSIMediaDetect(2)) {
+					//	DBPRINTF("MSD Device Attached in Port 3\n");
 						volume = 2;
 						res = f_mount(volume, &fatfs[volume]);
 							if (res == FR_OK) {
-								writeSPI1(8);
-								MSD3Mounted = 1;
+							//	DBPRINTF("%x: USB3 Mounted\n", volume);
+								PutCharacter('C');
 							} // if res
+						MSD3Mounted = 1;
+					//	DBPRINTF("2:/%s\n", findfilename("2:", 1));
 						}
-					}
+						}
 
-					// Device attached in Port 4
-					if ((MSD4Mounted == 0) && (MSD4Attached == 1)) {
+					 else if ((MSD4Mounted == 0) && (MSD4Attached == 1)) {
 						if (USBHostMSDSCSIMediaDetect(3)) {
+					//	DBPRINTF("MSD Device Attached in Port 4\n");
 						volume = 3;
 						res = f_mount(volume, &fatfs[volume]);
 							if (res == FR_OK) {
-								writeSPI1(8);
-								MSD4Mounted = 1;
+							//	DBPRINTF("%x: USB4 Mounted\n", volume);
+								PutCharacter('D');
 							} // if res
+						MSD4Mounted = 1;
 						}
-					}
-
+						}
+						
+				//	} // if usbhostmsdscsi
+				
+				//	i = 0;
 					} // if msdattached
 				} // while HubAttached
         } // while USBHostHubDeviceDetect 
@@ -375,6 +379,7 @@ BOOL USB_ApplicationEventHandler( BYTE address, USB_EVENT event, void *data, DWO
             }
             else
             {
+                DBPRINTF( "\n***** USB Error - device requires too much current *****\n" );
             }
             return TRUE;
 
@@ -388,6 +393,7 @@ BOOL USB_ApplicationEventHandler( BYTE address, USB_EVENT event, void *data, DWO
         case EVENT_HUB_ATTACH:
             // Hub device is attached
             HubAttached = TRUE;
+			PutCharacter('v');
             return TRUE;
             break;
 
@@ -397,64 +403,75 @@ BOOL USB_ApplicationEventHandler( BYTE address, USB_EVENT event, void *data, DWO
 			switch (CurrentPort){
 				case 1:
 					MSD1Attached = 1;
+					PutCharacter('A');
 					break;
 
 				case 2:
 					MSD2Attached = 1;
+					PutCharacter('B');
 					break;
 
 				case 3:
 					MSD3Attached = 1;
+					PutCharacter('C');
 					break;
 
 				case 4:
 					MSD4Attached = 1;
+					PutCharacter('D');
 					break;
 
 				default:
 					break;					
 
 			}
+
+				deviceAddress[CurrentPort] = CurrentPort + 1;
 				MSDAttached = 1;
 			return TRUE;
 			break;
 
 		case EVENT_DETACH:
 			// USB device is detached
+		//	DBPRINTF("MSD Device at %x Detached\n", CurrentPort);
 			volume = CurrentPort - 1;
 			switch (CurrentPort){
 				case 1:
 					MSD1Attached = 0;
-					writeSPI1(6);
-					res = f_mount(0, NULL);
+					PutCharacter('w');
+					res = f_mount(volume, NULL);
 					if (res == FR_OK) {
+					//	DBPRINTF("%x: MSD Device Unmounted\n", volume);
 						MSD1Mounted = 0;
 					}
 					break;
 
 				case 2:
 					MSD2Attached = 0;
-					writeSPI1(6);
-					res = f_mount(1, NULL);
+					PutCharacter('x');
+					res = f_mount(volume, NULL);
 					if (res == FR_OK) {
+					//	DBPRINTF("%x: MSD Device Unmounted\n", volume);
 						MSD2Mounted = 0;
 					}
 					break;
 
 				case 3:
 					MSD3Attached = 0;
-					writeSPI1(6);
-					res = f_mount(2, NULL);
+					PutCharacter('y');
+					res = f_mount(volume, NULL);
 					if (res == FR_OK) {
+					//	DBPRINTF("%x: MSD Device Unmounted\n", volume);
 						MSD3Mounted = 0;
 					}				
 					break;
 
 				case 4:
 					MSD4Attached = 0;
-					writeSPI1(6);
+					PutCharacter('z');
 					res = f_mount(volume, NULL);
 					if (res == FR_OK) {
+					//	DBPRINTF("%x: MSD Device Unmounted\n", volume);
 						MSD4Mounted = 0;
 					}
 					break;
@@ -463,6 +480,8 @@ BOOL USB_ApplicationEventHandler( BYTE address, USB_EVENT event, void *data, DWO
 					break;					
 
 			}
+
+				deviceAddress[CurrentPort] = 0;
 
 			if ((MSD1Attached == 0) && (MSD2Attached == 0) && (MSD3Attached == 0) && (MSD4Attached == 0)) {
 				MSDAttached = 0;
@@ -476,18 +495,22 @@ BOOL USB_ApplicationEventHandler( BYTE address, USB_EVENT event, void *data, DWO
             break;
 
         case EVENT_CANNOT_ENUMERATE:
+            //UART2PrintString( "\r\n***** USB Error - cannot enumerate device *****\r\n" );
             return TRUE;
             break;
 
         case EVENT_CLIENT_INIT_ERROR:
+            //UART2PrintString( "\r\n***** USB Error - client driver initialization error *****\r\n" );
             return TRUE;
             break;
 
         case EVENT_OUT_OF_MEMORY:
+            //UART2PrintString( "\r\n***** USB Error - out of heap memory *****\r\n" );
             return TRUE;
             break;
 
         case EVENT_UNSPECIFIED_ERROR:   // This should never be generated.
+            //UART2PrintString( "\r\n***** USB Error - unspecified *****\r\n" );
             return TRUE;
             break;
 
@@ -499,19 +522,12 @@ BOOL USB_ApplicationEventHandler( BYTE address, USB_EVENT event, void *data, DWO
 }
 
 
-/*-----------------------------------------------------------------------*/
-/* EXCEPTION ERROR HANDLER							                     */
-/*-----------------------------------------------------------------------*/
-
 static unsigned int _excep_code;
 static unsigned int _excep_addr;
 
 // this function overrides the normal _weak_ generic handler
 void _general_exception_handler(void)
 {
-
-	mPORTBClearBits(BIT_2);
-	mPORTBSetBits(BIT_1);
     asm volatile("mfc0 %0,$13" : "=r" (_excep_code));
     asm volatile("mfc0 %0,$14" : "=r" (_excep_addr));
 
@@ -523,367 +539,219 @@ void _general_exception_handler(void)
     }
 }
 
-/*-----------------------------------------------------------------------*/
-/* FILE SYSTEM FUNCTIONS							                     */
-/*-----------------------------------------------------------------------*/
+// FILE SYSTEM COMMANDS
+/*
+void TestPutFile(void) {
+	
+	FRESULT res;
+    FILINFO fno;
+    DIR dir;
+	FIL fp;
+
+		DBPRINTF("S\n");
+	res = f_open(&fp, "test.txt", FA_CREATE_ALWAYS | FA_WRITE);
+    res = f_puts("Hello World!\n", &fp);
+ 	res = f_close(&fp);
+		DBPRINTF("C\n");
+
+}
+*/
+
 /*-----------------------------------------------------------------------*/
 /* Read directory contents							                     */
 /*-----------------------------------------------------------------------*/
-
+    
 FRESULT read_contents (
-    char *path,        // Start node to be scanned (also used as work area) 
-	int drv
+    char *path        /* Start node to be scanned (also used as work area) */
 )
 {
     FRESULT res;
     FILINFO fno;
     DIR dir;
     int i, j, a;
+    //const char *fn;   /* This function assumes non-Unicode configuration */
 	const char *fn;
-	char filepath[_MAX_PATHNAME];
-
-	switch (drv){
-
-	case 0:
-		for (i=0; i<j; i++) {
-			memset(dirfiles1[i], 0, sizeof(dirfiles1[i]));
-		}
-		
-		j = 0;
-	
-	    res = f_opendir(&dir, path);                       // Open the directory 
-	    if (res == FR_OK) {
-	        i = strlenpgm(path);
-	        for (;;) {
-	
-				res = f_readdir(&dir, &fno);                   // Read a directory item 
-	            if (res != FR_OK || fno.fname[0] == 0) break;  // Break on error or end of dir 
-	            if (fno.fname[0] == '.' || fno.fattrib == 0x16) continue;             // Ignore dot entry 
-	
-				fn = fno.fname;
-	       
-				strncpy(dirfiles1[j], fn, strlen(fn)+1);
-				strncpy(filepath, "0:", strlen("0:")+1);
-				strncat(filepath, fn, strlen(fn)+3);
-	//			SendDataBuffer(dirfiles[j], strlenpgm(dirfiles[j]));
-				SendDataBuffer(filepath, strlenpgm(filepath));
-	     		SendDataBuffer(" ", strlen(" "));
-	
-				j++;
-			}
-	    }
-			
-	    SendDataBuffer(",", strlen(","));
-		break;		
-	case 1:
-		for (i=0; i<j; i++) {
-			memset(dirfiles2[i], 0, sizeof(dirfiles2[i]));
-		}
-		
-		j = 0;
-	
-	    res = f_opendir(&dir, path);                       // Open the directory 
-	    if (res == FR_OK) {
-	        i = strlenpgm(path);
-	        for (;;) {
-	
-				res = f_readdir(&dir, &fno);                   // Read a directory item 
-	            if (res != FR_OK || fno.fname[0] == 0) break;  // Break on error or end of dir 
-	            if (fno.fname[0] == '.' || fno.fattrib == 0x16) continue;             // Ignore dot entry 
-	
-				fn = fno.fname;
-	       
-				strncpy(dirfiles2[j], fn, strlen(fn)+1);
-				strncpy(filepath, "1:", strlen("1:")+1);
-				strncat(filepath, fn, strlen(fn)+3);
-	//			SendDataBuffer(dirfiles[j], strlenpgm(dirfiles[j]));
-				SendDataBuffer(filepath, strlenpgm(filepath));
-	     		SendDataBuffer(" ", strlen(" "));
-	
-				j++;
-			}
-	    }
-			
-	    SendDataBuffer(",", strlen(","));
-		break;	
-
-		case 2:
-		for (i=0; i<j; i++) {
-			memset(dirfiles3[i], 0, sizeof(dirfiles3[i]));
-		}
-		
-		j = 0;
-	
-	    res = f_opendir(&dir, path);                       // Open the directory 
-	    if (res == FR_OK) {
-	        i = strlenpgm(path);
-	        for (;;) {
-	
-				res = f_readdir(&dir, &fno);                   // Read a directory item 
-	            if (res != FR_OK || fno.fname[0] == 0) break;  // Break on error or end of dir 
-	            if (fno.fname[0] == '.'|| fno.fattrib == 0x16) continue;             // Ignore dot entry 
-	
-				fn = fno.fname;
-	       
-				strncpy(dirfiles3[j], fn, strlen(fn)+1);
-				strncpy(filepath, "2:", strlen("2:")+1);
-				strncat(filepath, fn, strlen(fn)+3);
-	//			SendDataBuffer(dirfiles[j], strlenpgm(dirfiles[j]));
-				SendDataBuffer(filepath, strlenpgm(filepath));
-	     		SendDataBuffer(" ", strlen(" "));
-	
-				j++;
-			}
-	    }
-			
-	    SendDataBuffer(",", strlen(","));
-		break;	
-		case 3:
-		for (i=0; i<j; i++) {
-			memset(dirfiles4[i], 0, sizeof(dirfiles4[i]));
-		}
-		
-		j = 0;
-	
-	    res = f_opendir(&dir, path);                       // Open the directory 
-	    if (res == FR_OK) {
-	        i = strlenpgm(path);
-	        for (;;) {
-	
-				res = f_readdir(&dir, &fno);                   // Read a directory item 
-	            if (res != FR_OK || fno.fname[0] == 0) break;  // Break on error or end of dir 
-	            if (fno.fname[0] == '.'|| fno.fattrib == 0x16) continue;             // Ignore dot entry 
-	
-				fn = fno.fname;
-	       
-				strncpy(dirfiles4[j], fn, strlen(fn)+1);
-				strncpy(filepath, "3:", strlen("3:")+1);
-				strncat(filepath, fn, strlen(fn)+3);
-	//			SendDataBuffer(dirfiles[j], strlenpgm(dirfiles[j]));
-				SendDataBuffer(filepath, strlenpgm(filepath));
-	     		SendDataBuffer(" ", strlen(" "));
-	
-				j++;
-			}
-	    }
-			
-	    SendDataBuffer(",", strlen(","));
-		break;	
-	}
-    return res;
-}
-
-/*-----------------------------------------------------------------------*/
-/* Load directory contents							                     */
-/*-----------------------------------------------------------------------*/
-    /*
-FRESULT read_directory (
-    char *path,       
-	int drv		// drive number
-)
-{
-    FRESULT res;
-    FILINFO fno;
-    DIR dir;
-    int i, j, a;
-	const char *fn;
-	char filepath[_MAX_PATHNAME];
-
-	for (i=0; i<_MAX_DIR_ENTRIES; i++) {
-		memset(directory[drv].dirfiles[i], 0, _MAX_FILENAME);
-		memset(directory[drv].dirpath[i], 0, _MAX_PATHNAME);
-	}
+	char dirfiles[20][_MAX_FILENAME];
 	
 	j = 0;
 
-    res = f_opendir(&dir, path);                      
+    res = f_opendir(&dir, path);                       /* Open the directory */
     if (res == FR_OK) {
         i = strlenpgm(path);
         for (;;) {
 
-			res = f_readdir(&dir, &fno);                  
-            if (res != FR_OK || fno.fname[0] == 0) break; 
-            if (fno.fname[0] == '.' || fno.fattrib == 0x16) continue;            
+			res = f_readdir(&dir, &fno);                   /* Read a directory item */
+            if (res != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
+            if (fno.fname[0] == '.') continue;             /* Ignore dot entry */
 
 			fn = fno.fname;
        
-			strncpy(directory[drv].dirfiles[j], fn, strlen(fn)+1);
-		//	DBPRINTF("%s\n", directory[drv].dirfiles[j]);
-			strncpy(directory[drv].dirpath[j], path, strlen(path)+1);
-			strncat(directory[drv].dirpath[j], fn, strlen(fn)+3);
-			SendDataBuffer(directory[drv].dirpath[j], strlenpgm(directory[drv].dirpath[j]));
-     	//	DBPRINTF("%s ", directory[drv].dirpath[i]);
-			SendDataBuffer(" ", strlen(" "));
-			
+			strncpy(dirfiles[j], fn, strlen(fn)+1);
+
+		//	DBPRINTF("%s/%s\n", path, dirfiles[j]);
+			SendDataBuffer(dirfiles[j], strlenpgm(dirfiles[j]));
+     		SendDataBuffer(" ", strlen(" "));
+
 			j++;
 		}
     }
-	
-	SendDataBuffer(",", strlen(","));	
+		
+	//	for (a = 0; a<=j; a++) {
+		//	SendDataBuffer(dirfiles[a], strlenpgm(dirfiles[a]));
+     	//	SendDataBuffer(" ", strlen(" "));
+	//		DBPRINTF("%i %s/%s\n", a, path, dirfiles[a]);
+	//	}
+
     return res;
 }
-*/
+
+
+/*-----------------------------------------------------------------------*/
+/* Find object within directory (filename string)                        */
+/*-----------------------------------------------------------------------*/
+
+char *findfilename (
+    char* path,        /* Start node to be scanned (also used as work area) */
+	int index
+)
+{
+    FRESULT res;
+    FILINFO fno;
+    DIR dir;
+    int i, a;
+    int j = 0;
+	const TCHAR *fn;
+	char fi[13];
+//	char *fi;
+	char filenames[20][_MAX_FILENAME];   /* This function assumes non-Unicode configuration */	
+
+    res = f_opendir(&dir, path);                       /* Open the directory */
+    if (res == FR_OK) {
+        i = strlenpgm(path);
+        for (;;) {
+
+			res = f_readdir(&dir, &fno);                   /* Read a directory item */
+            if (res != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
+            if (fno.fname[0] == '.') continue;             /* Ignore dot entry */
+
+			fn = fno.fname;
+
+		//	filenames[j] = (char *)malloc(strlenpgm(fn)+1);   
+		//	strcpy(filenames[j], fn);
+			strncpy(filenames[j], fn, strlen(fn)+1);
+
+		//	DBPRINTF("%s/%s, %i, %i\n", path, filenames[j], j, index);
+			j++;
+
+		}
+		//fi = filenames[index];
+		strncpy(fi, filenames[index], strlen(filenames[index])+1);
+	//	DBPRINTF("%i %s/%s\n", index, path, filenames[index]);
+    }
+	return fi;
+}
+
 /*-----------------------------------------------------------------------*/
 /* Copy and paste files from one drive to another                        */
 /*-----------------------------------------------------------------------*/
 
 FRESULT f_copy (
 	const char sourcename[_MAX_PATHNAME],
-	const char destname1[_MAX_PATHNAME], 
-	const char destname2[_MAX_PATHNAME], 
-	const char destname3[_MAX_PATHNAME]
+	const char destname[_MAX_PATHNAME]
 ) {
     
-    BYTE buffer[51200];   /* File copy buffer */
-    FRESULT fr, fr1, fr2, fr3;          /* FatFs function common result code */
+    BYTE buffer[8192];   /* File copy buffer */
+    FRESULT fr;          /* FatFs function common result code */
 	FRESULT fropensrc;
     UINT br, bw;         /* File read/write count */
-    static FIL fsrc, fdst1, fdst2, fdst3;
+    static FIL fsrc, fdst;
 
 	copying = 1;
-//	DBPRINTF("s");
-
-//			DBPRINTF("%s %s %s %s\n", sourcename, destname1, destname2, destname3);
+	DBPRINTF("s");
 
             fropensrc = f_open(&fsrc, sourcename, FA_READ | FA_OPEN_ALWAYS);
 			if (fropensrc) {
 				copying = 0; 
 				return (int) fr;
 			}	
-			            
-            fr1 = f_open(&fdst1, destname1, FA_WRITE | FA_CREATE_ALWAYS);
-
-			if (destname2 != "") {
-			fr2 = f_open(&fdst2, destname2, FA_WRITE | FA_CREATE_ALWAYS);
-				if (destname3 != "") {
-				fr3 = f_open(&fdst3, destname3, FA_WRITE | FA_CREATE_ALWAYS);
+            
+            fr = f_open(&fdst, destname, FA_WRITE | FA_CREATE_ALWAYS);
+            if (fr) {
+				if (fropensrc) {
+				f_close(&fsrc); 
 				}
-			}
-			
-			if (fr1 && fr2 && fr3) {
-				f_close(&fsrc);
 				copying = 0;
-				return (int) fr1;
+				return (int) fr;
 			}
 
     /* Copy source to destination */
     for (;;) {
         fr = f_read(&fsrc, buffer, sizeof buffer, &br);  /* Read a chunk of source file */
         if (fr || br == 0) break; /* error or eof */
-
-		fr = f_write(&fdst1, buffer, br, &bw);            /* Write it to the destination file */
-		if ((fr || bw < br) && fr2 && fr3) break;
-		f_sync(&fdst1);
-		if (!fr2 && destname2 != "") {
-			fr = f_write(&fdst2, buffer, br, &bw);            /* Write it to the destination file */
-        	if ((fr || bw < br) && fr3) break; /* error or disk full */	
-			f_sync(&fdst2);		
-				if (!fr3 && destname3 != "") {
-			        fr = f_write(&fdst3, buffer, br, &bw);            /* Write it to the destination file */
-			        if (fr || bw < br) break; /* error or disk full */
-					f_sync(&fdst3);
-				}
-		}
-		
+        fr = f_write(&fdst, buffer, br, &bw);            /* Write it to the destination file */
+        if (fr || bw < br) break; /* error or disk full */
+		f_sync(&fdst);
     }
 
     /* Close open files */
     f_close(&fsrc);
-    f_close(&fdst1);  
-	if (!fr2 && destname2 != "") {
-		f_close(&fdst2);		
-		if (!fr3 && destname3 != "") {
-		f_close(&fdst3);
-		}
-	}  
+    f_close(&fdst);    
 
+//	DBPRINTF("d");
 	copying = 0;
     return fr;
     
 }
 
-/*-----------------------------------------------------------------------*/
-/* Read filename extension							                     */
-/*-----------------------------------------------------------------------*/
- 
 char *getextension(char *fn) {
 
 	char *ext;
 
 		ext = strrchr(fn, '.');
 		if (!ext) {
-			return 0; /* no extension */
-		} 
-		else {
+			return 0;
+		    /* no extension */
+		} else {
+		    printf("extension is %s\n", ext + 1);
 			return ext;
 		}
 
 }
 
-/*-----------------------------------------------------------------------*/
-/* INITIALIZATION FUNCTIONS							                     */
-/*-----------------------------------------------------------------------*/
-/*-----------------------------------------------------------------------*/
-/* System initialize								                     */
-/*-----------------------------------------------------------------------*/
-
-void SYSTEMINIT (void) {
-
-	SYSTEMConfigPerformance(80000000L); 
-	
-	unsigned int cache_status;
-	
-	mBMXDisableDRMWaitState();
-	mCheConfigure(3);
-	cache_status = mCheGetCon();
-	cache_status |= CHE_CONF_PF_ALL;
-	mCheConfigure(cache_status);
-	CheKseg0CacheOn();
-	
-}
-
-/*-----------------------------------------------------------------------*/
-/* Digital outputs initialize						                     */
-/*-----------------------------------------------------------------------*/
-
-void PININIT(void) {
-
-// RB0 = 72 - GREEN
-// RB1 = 70 - RED
-// RB2 = 68 - YELLOW
-
-	mPORTDClearBits(BIT_0);
-    mPORTBClearBits(BIT_0); 		// Turn off RB0, RB1, RB2 bits on startup.
-    mPORTBSetPinsDigitalOut(BIT_0);	// Make RB0, RB1, RB2 as output.
-    mPORTBClearBits(BIT_1); 		// Turn off RB0, RB1, RB2 bits on startup.
-    mPORTBSetPinsDigitalOut(BIT_1);	// Make RB0, RB1, RB2 as output.
-    mPORTBClearBits(BIT_2); 		// Turn off RB0, RB1, RB2 bits on startup.
-    mPORTBSetPinsDigitalOut(BIT_2);	// Make RB0, RB1, RB2 as output.
-
-}
-
-/*-----------------------------------------------------------------------*/
-/* SPI1 channel initialize							                     */
-/*-----------------------------------------------------------------------*/
-
-void SPIINIT(void) {
-
-    //SPI setup
-    int rData = SPI1BUF;    //Clears receive buffer
-    IFS0CLR = 0x03800000;   //Clears any existing event (rx / tx/ fault interrupt)
-    SPI1STATCLR = 0x40;      //Clears overflow
-    //Enables the SPI channel (channel, master mode enable | use 8 bit mode | turn on, clock divider)
-    SpiChnOpen(1, SPI_CON_MSTEN | SPI_CON_MODE8 | SPI_CON_ON, 2); // SCK = Fpb/4 = 80/4 = 8 MHz
-
-}
-
-/*-----------------------------------------------------------------------*/
-/* UART2 initialize									                     */
-/*-----------------------------------------------------------------------*/
-
 void BTINIT (void) {
+	#if defined (__32MX220F032D__) || defined (__32MX250F128D__)
+    PPSInput(2,U2RX,RPB5); // Assign RPB5 as input pin for U2RX
+    PPSOutput(4,RPB0,U2TX); // Set RPB0 pin as output for U2TX
+    #elif defined (__32MX430F064L__) || (__32MX450F256L__) || (__32MX470F512L__)
+    PPSInput(2,U1RX,RPF4); // Assign RPF4 as input pin for U1RX
+    PPSOutput(2,RPF5,U1TX); // Set RPF5 pin as output for U1TX
+    #endif
 
-	 // Configure UART2 module, set baud rate, turn on UART, etc.
+    // Configure the device for maximum performance but do not change the PBDIV
+    // Given the options, this function will change the flash wait states, RAM
+    // wait state and enable prefetch cache but will not change the PBDIV.
+    // The PBDIV value is already set via the pragma FPBDIV option above.
+    SYSTEMConfig(SYS_FREQ, SYS_CFG_WAIT_STATES | SYS_CFG_PCACHE);
+
+    // Explorer-16 LEDs are on lower 8-bits of PORTA and to use all LEDs, JTAG port must be disabled.
+    //mJTAGPortEnable(DEBUG_JTAGPORT_OFF);
+
+    mPORTDClearBits(BIT_0); 		// Turn off RA7 on startup.
+    mPORTDSetPinsDigitalOut(BIT_0);	// Make RA7 as output.
+
+    // Configure UART1 module, set buad rate, turn on UART, etc.
+    UARTConfigure(UART_MODULE_ID_1,UART_ENABLE_PINS_TX_RX_ONLY);
+    UARTSetFifoMode(UART_MODULE_ID_1, UART_INTERRUPT_ON_TX_NOT_FULL | UART_INTERRUPT_ON_RX_NOT_EMPTY);
+    UARTSetLineControl(UART_MODULE_ID_1, UART_DATA_SIZE_8_BITS | UART_PARITY_NONE | UART_STOP_BITS_1);
+    UARTSetDataRate(UART_MODULE_ID_1, GetPeripheralClock(), DESIRED_BAUDRATE);
+    UARTEnable(UART_MODULE_ID_1, UART_ENABLE_FLAGS(UART_PERIPHERAL | UART_RX | UART_TX));
+
+	 // Configure UART1 RX Interrupt
+    INTEnable(INT_SOURCE_UART_RX(UART_MODULE_ID_1), INT_ENABLED);
+    INTSetVectorPriority(INT_VECTOR_UART(UART_MODULE_ID_1), INT_PRIORITY_LEVEL_2);
+    INTSetVectorSubPriority(INT_VECTOR_UART(UART_MODULE_ID_1), INT_SUB_PRIORITY_LEVEL_2);	
+
+	 // Configure UART2 module, set buad rate, turn on UART, etc.
     UARTConfigure(UART_MODULE_ID_2,UART_ENABLE_PINS_CTS_RTS | UART_RTS_WHEN_RX_NOT_FULL);
     UARTSetFifoMode(UART_MODULE_ID_2, UART_INTERRUPT_ON_TX_NOT_FULL | UART_INTERRUPT_ON_RX_NOT_EMPTY);
     UARTSetLineControl(UART_MODULE_ID_2, UART_DATA_SIZE_8_BITS | UART_PARITY_NONE | UART_STOP_BITS_1);
@@ -901,11 +769,6 @@ void BTINIT (void) {
 
 }
 
-
-/*-----------------------------------------------------------------------*/
-/* USB selectiton initialization						                 */
-/*-----------------------------------------------------------------------*/
-
 void InitSelected (void) {
 	USB1Selected = 0;
 	USB2Selected = 0;
@@ -913,466 +776,477 @@ void InitSelected (void) {
 	USB4Selected = 0;
 }
 
-
-/*-----------------------------------------------------------------------*/
-/* Send Files over Bluetooth						                     */
-/*-----------------------------------------------------------------------*/
-/*
-void SendFiles(int drv) {
-
-	int i, j;
-//	for (j = 0; j < 4; j ++) {
-	while (strlen(directory[drv].dirpath[i]) != 0 && i < _MAX_DIR_ENTRIES) {
-	//		DBPRINTF("%s ", directory[j].dirpath[i]);
-			SendDataBuffer(directory[drv].dirpath[i], strlenpgm(directory[j].dirpath[i]));
-     	//	DBPRINTF("%s ", directory[drv].dirpath[i]);
-			SendDataBuffer(" ", strlen(" "));
-			i++;
-		}
-	SendDataBuffer(",", strlen(","));
-	i =0;
-//	}
-}
-
-
-
-/*-----------------------------------------------------------------------*/
-/* File selection initialization					                     */
-/*-----------------------------------------------------------------------*/
-
-void ReloadDirectories(void) {
-
-		read_contents("0:", 0);
-//		SendFiles(0);		
-//		DelayMs(10);
-		read_contents("1:", 1);
-//		SendFiles(1);
-//		DelayMs(10);
-		read_contents("2:", 2);
-//		SendFiles(2);
-//		DelayMs(10);
-		read_contents("3:", 3);	
-//		SendFiles(3);
-//		DelayMs(10);
-		SendDataBuffer("/", strlen("/"));
-}
-
-/*-----------------------------------------------------------------------*/
-/* File selection initialization					                     */
-/*-----------------------------------------------------------------------*/
-
 void ClearSelection(void) {
 
-	int j;
+	int j, l;
 	for (j = 0; j < k; j++) {
-		selection[j].drv = 0;
-		strcpy(selection[j].root, "");
-		strcpy(selection[j].selectfile, "");
-		strcpy(selection[j].selectpath, "");
-		strcpy(selection[j].dest[0], "");
-		strcpy(selection[j].dest[1], "");
-		strcpy(selection[j].dest[2], "");
-		strcpy(selection[j].destpaths[0], "");
-		strcpy(selection[j].destpaths[1], "");
-		strcpy(selection[j].destpaths[2], "");
+		strcpy(selectfile[j], "");
+	}
+	for (l = 0; l < m; l++) {
+		strcpy(selectpath[m], "");
 	}
 	k = 0;
+	m = 0;
 }
-
-/*-----------------------------------------------------------------------*/
-/* File buffer initialization					                     */
-/*-----------------------------------------------------------------------*/
-
-void ClearBuff(void) {
-	int z = 0;
-	listbuff.src = 0;
-	memset(listbuff.srcroot, 0, sizeof(listbuff.srcroot));
-	memset(listbuff.srcfile, 0, sizeof(listbuff.srcfile));
-	memset(listbuff.srcpath, 0, sizeof(listbuff.srcpath));
-	for (z = 0; z < d; z++) {	
-	memset(listbuff.destdrv[z], 0, sizeof(listbuff.destdrv[z]));
-	}
-	d = 0;
-}
-
-/*-----------------------------------------------------------------------*/
-/* INTERRUPT EVENT HANDLER							                     */
-/*-----------------------------------------------------------------------*/
-/*-----------------------------------------------------------------------*/
-/* Bluetooth command interrupt event handler		                     */
-/*-----------------------------------------------------------------------*/
 
 void GetBTCommand(const char character) {
 
-		const char time[32];
 		FRESULT res;
-		int n, b;
+		int n;
 		int index = 0;
 
 		DBPRINTF("%c", character);
 
-
 		// GET DIRECTORY
 
-		// MSD1 Selected
-		if (character == 'E' && renaming == 0) {
+		if (character == 'E' && RXnewname == 0) { // USB 1 Selected
 			InitSelected();
-				if (MSD1Attached) {
-				writeSPI1(4);
-				USB1Selected = 1;
-				listbuff.src = 0;
-				strncpy(listbuff.srcroot, "0:", 3);
-		//		read_contents(root);
+			ClearSelection();
+			if (MSD1Attached) {
+			USB1Selected = 1;
+			strncpy(root, "0:", 3);
+			read_contents(root);
+			PutCharacter('A');
 			}
-			else if (!MSD1Attached) {
-				writeSPI1(6);
+			else {
+			PutCharacter('E');
 			}
 		}
 
-		// MSD2 Selected
-		else if (character == 'F' && renaming == 0) {
+		else if (character == 'F' && RXnewname == 0) { // USB 2 Selected
 			InitSelected();
+			ClearSelection();
 			if (MSD2Attached) {
-				writeSPI1(4);
-				USB2Selected = 1;
-				listbuff.src = 1;
-				strncpy(listbuff.srcroot, "1:", 3);
-		//		read_contents(root);
+			USB2Selected = 1;
+			strncpy(root, "1:", 3);
+			read_contents(root);
+			PutCharacter('B');
 			}
-			else if (!MSD2Attached) {
-			writeSPI1(6);
+			else {
+			PutCharacter('F');
 			}
 		}
 
-		// MSD3 Selected
-		else if (character == 'G' && renaming == 0) {
+		else if (character == 'G' && RXnewname == 0) { // USB 3 Selected
 			InitSelected();
+			ClearSelection();
 			if (MSD3Attached) {
-				writeSPI1(4);
-				USB3Selected = 1;
-				listbuff.src = 2;
-				strncpy(listbuff.srcroot, "2:", 3);
-		//		read_contents(root);
+			USB3Selected = 1;
+			strncpy(root, "2:", 3);
+			read_contents(root);
+			PutCharacter('C');
 			}
-			else if (!MSD3Attached) {
-				writeSPI1(6);
+			else {
+			PutCharacter('G');
 			}
 		}	
 
-		else if (character == 'H' && renaming == 0) { // USB 4 Selected
+		else if (character == 'H' && RXnewname == 0) { // USB 4 Selected
 			InitSelected();
-		//	writeSPI1(8);
- 			if (MSD4Attached) {
-				writeSPI1(4);
-				USB4Selected = 1;
-				listbuff.src = 3;
-				strncpy(listbuff.srcroot, "3:", 3);
-		//		read_contents(root);
+			ClearSelection();
+			if (MSD4Attached) {
+			USB4Selected = 1;
+			strncpy(root, "3:", 3);
+			read_contents(root);
+//			PassDirectory(character);
+			PutCharacter('D');
 			}
-			else if (!MSD4Attached) {
-				writeSPI1(6);
+			else {
+			PutCharacter('H');
 			}
 		}
 
 		// STORE SELECTED FILES
 
-		// Find the filename to copy
-		else if (((character>='0' && character<='9') || character == '-') && renaming == 0) {
-
+		else if (((character>='0' && character<='9') || character == '-') && renaming == 0) { // Find the filename to copy
+		//	DBPRINTF("%c\n", character);
 			UART_RxString(character);
 			if (RXdone) {			
+			//	index = rxstring - '0';
 				index = atoi(rxstring);
 				memset(rxstring, 0, sizeof(rxstring));
-				switch (listbuff.src) {
-				case 0:
-				strncpy(listbuff.srcfile, dirfiles1[index], strlen(dirfiles1[index])+1);
-			//	DBPRINTF("%s %s", listbuff.srcfile, dirfiles1[index]);
-				break;
-				case 1:
-				strncpy(listbuff.srcfile, dirfiles2[index], strlen(dirfiles2[index])+1);
-			//	DBPRINTF("%s %s", listbuff.srcfile, dirfiles1[index]);
-				break;
-				case 2:
-				strncpy(listbuff.srcfile, dirfiles3[index], strlen(dirfiles3[index])+1);
-			//	DBPRINTF("%s %s", listbuff.srcfile, dirfiles1[index]);
-				break;
-				case 3:
-				strncpy(listbuff.srcfile, dirfiles4[index], strlen(dirfiles4[index])+1);
-			//	DBPRINTF("%s %s", listbuff.srcfile, dirfiles1[index]);
-				break;
-				}
-				strncpy(listbuff.srcpath, listbuff.srcroot, strlen(listbuff.srcroot)+1);
-				strncat(listbuff.srcpath, listbuff.srcfile, strlen(listbuff.srcfile)+3);
-				DBPRINTF("%s", listbuff.srcpath);
-		//		DBPRINTF("%s %s", listbuff.srcfile, listbuff.srcpath);
-		//		strncpy(selection[k].root, root, 3);
-		//		strncpy(selection[k].selectfile, selectfile[k], strlen(selectfile[k])+1);
-		//		strncpy(selection[k].selectpath, selectpath[m], strlen(selectpath[m])+1);
-		//		k++;
-		//		m++;
+				strcpy(fn, findfilename(root, index-1));
+				strncpy(selectfile[k], fn, strlen(fn)+1);
+				strncpy(selectpath[m], root, strlen(root)+1);
+				strncat(selectpath[m], fn, strlen(fn)+3);
+				k++;
+				m++;
+			//	DBPRINTF("%s, %s, %i, %s, %i, %s\n", root, fn, k, selectfile[k], m, selectpath[m]);
 			RXdone = 0;
 			}
 		}
 
-		// CHOOSE DESTINATION
-
-		// MSD1 chosen
-		else if (character == 'm' && renaming == 0) {
-			strncpy(listbuff.destdrv[d], "0:", 3);
-			d++;
+/*
+		else if (((character>='0' && character<='9') || character == '-') && USB1Selected == 1 && renaming == 0) { // Find the filename to copy from USB1
+		//	DBPRINTF("%c\n", character);
+			UART_RxString(character);
+			if (RXdone) {			
+			//	index = rxstring - '0';
+				index = atoi(rxstring);
+				memset(rxstring, 0, sizeof(rxstring));
+				strcpy(fn, findfilename("0:", index-1));
+				strncpy(selectfile[k], fn, strlen(fn)+1);
+				strncpy(selectpath[m], root, strlen(root)+1);
+				strncat(selectpath[m], fn, strlen(fn)+3);
+				k++;
+				m++;
+				
+("%s, %s, %i, %s, %i, %s\n", root, fn, k, selectfile[k], m, selectpath[m]);
+			RXdone = 0;
+			}
+		}
+		
+		else if (((character>='0' && character<='9') || character == '-') && USB2Selected == 1 && renaming == 0) { // Find the filename to copy from USB2
+		//	DBPRINTF("%c\n", character);
+			UART_RxString(character);
+			if (RXdone) {
+				index = rxstring - '0';
+				memset(rxstring, 0, sizeof(rxstring));
+				strcpy(fn, findfilename("1:", index-1));
+				strncpy(selectfile[k], fn, strlen(fn)+1);
+				strncpy(selectpath[m], root, strlen(root)+1);
+				strncat(selectpath[m], fn, strlen(fn)+3);
+				k++;
+				m++;
+			RXdone = 0;
+			}
+		//	DBPRINTF("%s, %s\n", rxstring, fn);
 		}
 
-		// MSD2 chosen
-		else if (character == 'n' && renaming == 0) {
-			strncpy(listbuff.destdrv[d], "1:", 3);
-			d++;
+		else if (((character>='0' && character<='9') || character == '-') && USB3Selected == 1 && renaming == 0) { // Find the filename to copy from USB3
+		//	DBPRINTF("%c\n", character);
+			UART_RxString(character);
+			if (RXdone) {
+				index = rxstring - '0';
+				memset(rxstring, 0, sizeof(rxstring));
+				strcpy(fn, findfilename("2:", index-1));
+				strncpy(selectfile[k], fn, strlen(fn)+1);
+				strncpy(selectpath[m], root, strlen(root)+1);
+				strncat(selectpath[m], fn, strlen(fn)+3);
+				k++;
+				m++;
+			RXdone = 0;
+			}
+		//	DBPRINTF("%s, %s\n", pathname, fn);
 		}
 
-		// MSD3 chosen
-		else if (character == 'o' && renaming == 0) {
-			strncpy(listbuff.destdrv[d], "2:", 3);
-			d++;
+		else if (((character>='0' && character<='9') || character == '-') && USB4Selected == 1 && renaming == 0) { // Find the filename to copy from USB4
+		//	DBPRINTF("%c\n", character);
+			UART_RxString(character);
+			if (RXdone) {
+				index = rxstring - '0';
+				memset(rxstring, 0, sizeof(rxstring));
+				strcpy(fn, findfilename("3:", index-1));
+				strncpy(selectfile[k], fn, strlen(fn)+1);
+				strncpy(selectpath[m], root, strlen(root)+1);
+				strncat(selectpath[m], fn, strlen(fn)+3);
+				k++;
+				m++;
+			RXdone = 0;
+			}
+		//	DBPRINTF("%s, %s\n", pathname, fn);
 		}
-
-		// MSD4 chosen
-		else if (character == 'p' && renaming == 0) {
-			strncpy(listbuff.destdrv[d], "3:", 3);
-			d++;
-		}
-
+*/
 		// PASTE FILES
 
-		else if (character == 'i' && renaming == 0) {
-		writeSPI1(10);
-		mPORTBSetBits(BIT_2);
+		else if (character == 'm' && RXnewname == 0) { // Paste to USB1
 		StartCount = ReadCoreTimer();
-			for (n = 0; n < k; n++) {
-			    mPORTBClearBits(BIT_0 | BIT_1); 
-			//	for (b=0; b<d; b++) {
-			//		strncpy(destpath[b], destdrv[b], 3);
-			//		strncat(destpath[b], selection[n].selectfile, strlen(selection[n].selectfile)+3);
-			//	}
-			//	if (d==1) {
-			//	res = f_copy(selection[n].selectpath, destpath[0], "", "");
-			//	}
-			//	else if (d==2) {
-			//	res = f_copy(selection[n].selectpath, destpath[0], destpath[1], "");
-			//	}
-			//	else if (d==3) {
-				res = f_copy(selection[n].selectpath, selection[n].destpaths[0], selection[n].destpaths[1], selection[n].destpaths[2]);
-			//	}
-				if (res == FR_OK) {	
-				//	DBPRINTF("d");
-					mPORTBSetBits(BIT_0);
-				}
-				else {
-				//	DBPRINTF("f");
-					mPORTBSetBits(BIT_1);
-				}
+		for (n = 0; n < k; n++) {
+		while (!copying) {
+			strncpy(destpath, "0:", 3);
+			strncat(destpath, selectfile[n], strlen(selectfile[n])+3);
+		//	DBPRINTF("%s\n", destpath);
+			res = f_copy(selectpath[n], destpath);
+			if (res == FR_OK) {
+				DBPRINTF("d");
+				PutCharacter('m');
+			//	PutInteger('1');
 			}
-//		FileTime = (ReadCoreTimer()-StartCount)/40000L;
-		FileTime = FILETIME_MS((ReadCoreTimer()-StartCount));
-		sprintf(time, "%lu", FileTime);
-		SendDataBuffer("*", strlen("*"));
-		SendDataBuffer(time, strlen(time));
-		SendDataBuffer("/", strlen("/"));
-		DBPRINTF("t %s\n", time);
-		mPORTBClearBits(BIT_2);
-		writeSPI1(12);
-		ClearSelection();
+			else {
+				DBPRINTF("f");
+				PutCharacter('q');
+			//	PutInteger('2');
+			}
+			copying = 0;
+			break;
+		}
+		}
+		FileTime = (ReadCoreTimer()-StartCount)/80000;
+		DBPRINTF("t %lu\n", FileTime);
+		PutCharacter('u');
 		}
 
+		else if (character == 'n' && RXnewname == 0) { // Paste to USB2
+		StartCount = ReadCoreTimer();
+		for (n = 0; n < k; n++) {
+		while (!copying) {
+			strncpy(destpath, "1:", 3);
+			strncat(destpath, selectfile[n], strlen(selectfile[n])+3);
+		//	DBPRINTF("%s\n", destpath);
+			res = f_copy(selectpath[n], destpath);
+			if (res == FR_OK) {
+				DBPRINTF("d");
+				PutCharacter('m');
+			//	PutInteger('1');
+			}
+			else {
+				DBPRINTF("f");
+				PutCharacter('q');
+			//	PutInteger('2');
+			}
+			break;
+		}
+		}
+		FileTime = (ReadCoreTimer()-StartCount)/80000;
+		DBPRINTF("t %lu\n", FileTime);
+		PutCharacter('u');
+		}
+
+
+		else if (character == 'o' && RXnewname == 0) { // Paste to USB3
+		StartCount = ReadCoreTimer();
+		for (n = 0; n < k; n++) {
+		while (!copying) {
+			strncpy(destpath, "2:", 3);
+			strncat(destpath, selectfile[n], strlen(selectfile[n])+3);
+		//	DBPRINTF("%s\n", destpath);
+			res = f_copy(selectpath[n], destpath);
+			if (res == FR_OK) {
+				DBPRINTF("d");
+				PutCharacter('m');
+			}
+			else {
+				DBPRINTF("f");
+				PutCharacter('q');
+			}
+			break;
+		}
+		}
+		FileTime = (ReadCoreTimer()-StartCount)/80000;
+		DBPRINTF("t %lu\n", FileTime);
+		PutCharacter('u');
+		}
+
+		else if (character == 'p' && RXnewname == 0) { // Paste to USB4
+		StartCount = ReadCoreTimer();
+		for (n = 0; n < k; n++) {
+		while (!copying) {
+			strncpy(destpath, "3:", 3);
+			strncat(destpath, selectfile[n], strlen(selectfile[n])+3);
+		//	DBPRINTF("%s\n", destpath);
+			res = f_copy(selectpath[n], destpath);
+			if (res == FR_OK) {
+				DBPRINTF("d");
+				PutCharacter('m');
+			}
+			else {
+				DBPRINTF("f");
+				PutCharacter('q');
+			}
+			break;
+		}
+		}
+		FileTime = (ReadCoreTimer()-StartCount)/80000;
+		DBPRINTF("t %lu\n", FileTime);
+		PutCharacter('u');
+		}
 
 		// DELETE FILES
 
-		else if (character == 'q' && renaming == 0) { // Delete files
-		writeSPI1(10);
-		mPORTBSetBits(BIT_2);
-		StartCount = ReadCoreTimer();
+		else if (character == 'q' && RXnewname == 0) { // delete files
 		for (n = 0; n < k; n++) {
-			res = f_unlink(selection[n].selectpath);
+			res = f_unlink(selectpath[n]);
 			if (res == FR_OK) {
-				mPORTBSetBits(BIT_0);
-			//	DBPRINTF("d");
+				DBPRINTF("d");
+				PutCharacter('n');
 			}
 			else {
-				mPORTBSetBits(BIT_1);
-			//	DBPRINTF("f");
+				DBPRINTF("f");
+				PutCharacter('r');
 			}
 		}
-//		FileTime = (ReadCoreTimer()-StartCount)/40000L;
-		FileTime = FILETIME_MS((ReadCoreTimer()-StartCount));
-		sprintf(time, "%lu", FileTime);
-		SendDataBuffer("*", strlen("*"));
-		SendDataBuffer(time, strlen(time));
-		SendDataBuffer("/", strlen("/"));
-		DBPRINTF("t %s\n", time);
-		mPORTBClearBits(BIT_2);
-		writeSPI1(12);
+		DBPRINTF("t\n");
+		PutCharacter('u');
 		ClearSelection();
 		}
 
 		// MOVE FILES
 
-		else if (character == 'j' && renaming == 0) {
-		writeSPI1(10);
-		mPORTBSetBits(BIT_2);
-		StartCount = ReadCoreTimer();
-		for (n = 0; n < k; n++) {
-				mPORTBClearBits(BIT_0 | BIT_1); 
-				res = f_copy(selection[n].selectpath, selection[n].destpaths[0], selection[n].destpaths[1], selection[n].destpaths[2]);
-				if (res == FR_OK) {
-					res = f_unlink(selection[n].selectpath);
+		else if (character == 'i' && RXnewname == 0) { // Move to USB1
+			for (n = 0; n < k; n++) {
+				while (!copying) {
+					strncpy(destpath, "0:", 3);
+					strncat(destpath, selectfile[n], strlen(selectfile[n])+3);
+				//	DBPRINTF("%s\n", destpath);
+					res = f_copy(selectpath[n], destpath);
 					if (res == FR_OK) {
-						mPORTBSetBits(BIT_0);
+						DBPRINTF("d");
+						res = f_unlink(selectpath[n]);
+						if (res == FR_OK) {
+							DBPRINTF("d");
+						}
+						else {
+							DBPRINTF("f");
+						}
+						PutCharacter('p');
 					}
 					else {
-						mPORTBSetBits(BIT_1);
+						DBPRINTF("f");
+						PutCharacter('t');
 					}
-				}
-				else {
-					mPORTBSetBits(BIT_1);
-					DBPRINTF("f");
+					break;
 				}
 			}
-		FileTime = FILETIME_MS((ReadCoreTimer()-StartCount));
-		sprintf(time, "%lu", FileTime);
-		SendDataBuffer("*", strlen("*"));
-		SendDataBuffer(time, strlen(time));
-		SendDataBuffer("/", strlen("/"));
-		DBPRINTF("t %s\n", time);
-		mPORTBClearBits(BIT_2);
-		writeSPI1(12);
-		InitSelected();
-		ClearSelection();
-		ClearBuff();
+			DBPRINTF("t\n");
+			PutCharacter('u');
+			ClearSelection();
+		}
+
+		else if (character == 'j' && RXnewname == 0) { // Move to USB2
+			for (n = 0; n < k; n++) {
+				while (!copying) {
+					strncpy(destpath, "1:", 3);
+					strncat(destpath, selectfile[n], strlen(selectfile[n])+3);
+				//	DBPRINTF("%s\n", destpath);
+					res = f_copy(selectpath[n], destpath);
+					if (res == FR_OK) {
+						DBPRINTF("d");
+						res = f_unlink(selectpath[n]);
+						if (res == FR_OK) {
+							DBPRINTF("d");
+						}
+						else {
+							DBPRINTF("f");
+						}
+						PutCharacter('p');
+					}
+					else {
+						DBPRINTF("f");
+						PutCharacter('t');
+					}
+					break;
+				}
+			}
+			DBPRINTF("t\n");
+			PutCharacter('u');
+			ClearSelection();
+		}
+
+		else if (character == 'k' && RXnewname == 0) { // Move to USB3
+			for (n = 0; n < k; n++) {
+				while (!copying) {
+					strncpy(destpath, "2:", 3);
+					strncat(destpath, selectfile[n], strlen(selectfile[n])+3);
+				//	DBPRINTF("%s\n", destpath);
+					res = f_copy(selectpath[n], destpath);
+					if (res == FR_OK) {
+						DBPRINTF("d");
+						res = f_unlink(selectpath[n]);
+						if (res == FR_OK) {
+							DBPRINTF("d");
+						}
+						else {
+							DBPRINTF("f");
+						}
+						PutCharacter('p');
+					}
+					else {
+						DBPRINTF("f");
+						PutCharacter('t');
+					}
+					break;
+				}
+			}
+			DBPRINTF("t\n");
+			PutCharacter('u');
+			ClearSelection();
+		}
+
+		else if (character == 'l' && RXnewname == 0) { // Move to USB4
+			for (n = 0; n < k; n++) {
+				while (!copying) {
+					strncpy(destpath, "3:", 3);
+					strncat(destpath, selectfile[n], strlen(selectfile[n])+3);
+				//	DBPRINTF("%s\n", destpath);
+					res = f_copy(selectpath[n], destpath);
+					if (res == FR_OK) {
+						DBPRINTF("d");
+						res = f_unlink(selectpath[n]);
+						if (res == FR_OK) {
+							DBPRINTF("d");
+						}
+						else {
+							DBPRINTF("f");
+						}
+						PutCharacter('p');
+					}
+					else {
+						DBPRINTF("f");
+						PutCharacter('t');
+					}
+					break;
+				}
+			}
+			DBPRINTF("t\n");
+			PutCharacter('u');
+			ClearSelection();
 		}
 
 		// RENAME
 
-		// Choose old filename
-		else if (character == 'r' && renaming == 0) {
+		else if (character == 'r' && RXnewname == 0) {
 		renaming = 1;
-	//	strncat(oldname, listbuff.srcfile, strlen(selection[0].selectfile)+3);
-		strcpy(ext, getextension(listbuff.srcfile));
 		}
 
-		// Read new filename
-		else if (character != ' ' && renaming == 1) {
-			writeSPI1(10);
-			mPORTBSetBits(BIT_2);
+		else if (((character>='0' && character<='9') || character == '-') && renaming == 1 && RXnewname == 0) { // Find the filename to copy from USB1
+		//	DBPRINTF("%c\n", character);
+			UART_RxString(character);
+			if (RXdone) {			
+			//	index = rxstring - '0';
+				index = atoi(rxstring);
+				memset(rxstring, 0, sizeof(rxstring));
+				strcpy(fn, findfilename(root, index-1));
+				strcpy(ext, getextension(fn));
+				DBPRINTF("%s", ext);
+				strncpy(oldname, root, 3);
+				strncat(oldname, fn, strlen(fn)+3);
+			//	DBPRINTF("%s, %s\n", fn, oldname);
+			RXdone = 0;
+			RXnewname = 1;
+			}
+		}
+
+		else if (character != ' ' && renaming == 1 && RXnewname == 1) {
 			UART_RxString(character);
 			if (RXdone) {
 				strncpy(newname, rxstring, strlen(rxstring));
 				strncat(newname, ext, strlen(ext)+1);
+				DBPRINTF("%s, %s", newname, ext);
 				memset(rxstring, 0, sizeof(rxstring));
 				memset(ext, 0, sizeof(ext));
-				StartCount = ReadCoreTimer();
-				res = f_rename(listbuff.srcpath, newname);
+				res = f_rename(oldname, newname);
 				if (res == FR_OK) {
-					mPORTBSetBits(BIT_0);
-				//	DBPRINTF("d\n");
+					DBPRINTF("d\n");
+					PutCharacter('o');
 				}
 				else {
-					mPORTBSetBits(BIT_1);
-				//	DBPRINTF("f\n");
+					DBPRINTF("f\n");
+					PutCharacter('s');
 				}
-	//		FileTime = (ReadCoreTimer()-StartCount)/40000L;
-			FileTime = FILETIME_MS((ReadCoreTimer()-StartCount));
-			sprintf(time, "%lu", FileTime);
-		//	SendDataBuffer("*", strlen("*"));
-		//	SendDataBuffer(time, strlen(time));
-		//	SendDataBuffer("/", strlen("/"));
-			DBPRINTF("t %s\n", time);
-			mPORTBClearBits(BIT_2);
-			writeSPI1(12);
+			PutCharacter('u');
 			RXdone = 0;
+			RXnewname = 0;
 			renaming = 0;
 			memset(oldname, 0, sizeof(oldname));
 			memset(newname, 0, sizeof(newname));
-			InitSelected();
-			ClearSelection();
-			ClearBuff();
 			}
-		}
-
-		else if (character == 's' && renaming == 0) { // RENAME CANCELLED
-		renaming = 0;
-		InitSelected();
-		ClearSelection();
-		ClearBuff();
-		}
-
-		// CLEAR SELECTION
-
-		else if (character == 'k' && renaming == 0) {
-
-			InitSelected();
-			ClearBuff();
-			ClearSelection();
-
-		}		
-
-		else if (character == 'l' && renaming == 0) {
-
-		writeSPI1(14);
-
-		}
-
-		// READ DIRECTORIES
-		else if (character == 'D' && renaming == 0) {
-
-			ReloadDirectories();
-		//	SendFiles();
-		}
-
-
-		// ADD FILES TO SELECTION LIST
-		else if (character == 'A' && renaming == 0) {
-			int y = 0, z =0;
-			memset(selection[k].destpaths[0], "", sizeof(selection[k].destpaths[0]));
-			memset(selection[k].destpaths[1], "", sizeof(selection[k].destpaths[1]));
-			memset(selection[k].destpaths[2], "", sizeof(selection[k].destpaths[2]));
-			selection[k].drv = listbuff.src;
-			strncpy(selection[k].root, listbuff.srcroot, strlen(listbuff.srcroot)+1);
-			strncpy(selection[k].selectfile, listbuff.srcfile, strlen(listbuff.srcfile)+1);
-			strncpy(selection[k].selectpath, listbuff.srcpath, strlen(listbuff.srcpath)+1);
-			for (y = 0; y<d; y++) {
-				strncpy(selection[k].dest[y], listbuff.destdrv[y], strlen(listbuff.destdrv[y])+1);
-			//	strncat(selection[k].dest[y], ":", strlen(":")+1);
-				strncpy(selection[k].destpaths[y], listbuff.destdrv[y], strlen(listbuff.destdrv[y])+1);
-				strncat(selection[k].destpaths[y], listbuff.srcfile, strlen(listbuff.srcfile)+1);
-			}
-				
-		//	DBPRINTF("%s %s %s %s\n", selection[k].selectfile, selection[k].selectpath, selection[k].destpaths[0], selection[k].destpaths[1]);
-			k++;
-			ClearBuff();
 		}
 
 		DelayMs(10);
-		mPORTBClearBits(BIT_0 | BIT_1); 
-
-
 }
-
-/*-----------------------------------------------------------------------*/
-/* SPI AND UART FUNCTIONS							                     */
-/*-----------------------------------------------------------------------*/
-/*-----------------------------------------------------------------------*/
-/* Write data to SPI1 channel						                     */
-/*-----------------------------------------------------------------------*/
-
-unsigned int writeSPI1(unsigned int a) {
-
-         putcSPI1(a);                 //Sends hex data unsigned int data to slave
-         int receive = SPI1BUF;            //Read SP1BUF (dummy read)
-         SPI1BUF = 0x0;                  //Write SP1BUF- sets Tx flag, if not done read will not clock
-         return getcSPI1();            //Generates clock and reads SDO
-}
-
 
 // *****************************************************************************
-// Send string from UART2
+// void UARTTxBuffer(char *buffer, UINT32 size)
 // *****************************************************************************
 void SendDataBuffer(const char *buffer, UINT32 size)
 {
@@ -1391,12 +1265,33 @@ void SendDataBuffer(const char *buffer, UINT32 size)
         ;
 }
 
-/*-----------------------------------------------------------------------*/
-/* Receive string from UART2						                     */
-/*-----------------------------------------------------------------------*/
+void PutCharacter(const char character)
+{
+        while(!UARTTransmitterIsReady(UART_MODULE_ID_1))
+            ;
+
+        UARTSendDataByte(UART_MODULE_ID_1, character);
+
+
+        while(!UARTTransmissionHasCompleted(UART_MODULE_ID_1))
+            ;
+}
+
+void PutInteger(unsigned int integer)
+{
+        while(!UARTTransmitterIsReady(UART_MODULE_ID_2))
+            ;
+
+        UARTSendDataByte(UART_MODULE_ID_2, integer);
+
+
+        while(!UARTTransmissionHasCompleted(UART_MODULE_ID_2))
+            ;
+}
+
 char UART_RxString(const char character){
 	
-	RXdone = 0;					// receive string flag
+	RXdone = 0;
    if (character != '-') {            // while not end of string
        namebuff[s] = character;            // read next character 
        s++;                 // increment pointer to next character
@@ -1414,10 +1309,25 @@ char UART_RxString(const char character){
        return rxstring;    // return the contents of uart
 }
 
-/*-----------------------------------------------------------------------*/
-/* UART2 interrupt handler, set at priority level 3		                 */
-/*-----------------------------------------------------------------------*/
+// UART 1 interrupt handler, set at priority level 2
 
+void __ISR(_UART1_VECTOR, ipl2) IntUart1Handler(void)
+{
+	// Is this an RX interrupt?
+	if(INTGetFlag(INT_SOURCE_UART_RX(UART_MODULE_ID_1)))
+	{
+             // Clear the RX interrupt Flag
+	    INTClearFlag(INT_SOURCE_UART_RX(UART_MODULE_ID_1));
+	}
+
+	// We don't care about TX interrupt
+	if (INTGetFlag(INT_SOURCE_UART_TX(UART_MODULE_ID_1)))
+	{
+            INTClearFlag(INT_SOURCE_UART_TX(UART_MODULE_ID_1));
+	}
+}
+
+// UART 2 interrupt handler, set at priority level 3
 void __ISR(_UART2_VECTOR, ipl3) IntUart2Handler(void)
 {
 	// Is this an RX interrupt?
