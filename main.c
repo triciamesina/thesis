@@ -10,8 +10,8 @@
  Company:		Microchip Technology, Inc.
  Software License Agreement:
  The software supplied herewith by Microchip Technology Incorporated
- (the ìCompanyî) for its PICÆ Microcontroller is intended and
- supplied to you, the Companyís customer, for use solely and
+ (the ‚ÄúCompany‚Äù) for its PIC¬Æ Microcontroller is intended and
+ supplied to you, the Company‚Äôs customer, for use solely and
  exclusively on Microchip PIC Microcontroller products. The
  software is owned by the Company and/or its supplier, and is
  protected under applicable copyright laws. All rights are reserved.
@@ -19,7 +19,7 @@
  user to criminal sanctions under applicable laws, as well as to
  civil liability for the breach of the terms and conditions of this
  license.
- THIS SOFTWARE IS PROVIDED IN AN ìAS ISî CONDITION. NO WARRANTIES,
+ THIS SOFTWARE IS PROVIDED IN AN ‚ÄúAS IS‚Äù CONDITION. NO WARRANTIES,
  WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING, BUT NOT LIMITED
  TO, IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
  PARTICULAR PURPOSE APPLY TO THIS SOFTWARE. THE COMPANY SHALL NOT,
@@ -105,7 +105,7 @@
     #pragma config BWP      = OFF           // Boot Flash Write Protect
     #pragma config PWP      = OFF           // Program Flash Write Protect
     #pragma config ICESEL   = ICS_PGx2      // ICE/ICD Comm Channel Select
-    #pragma config DEBUG    = ON            // Background Debugger Enable
+    #pragma config DEBUG    = OFF            // Background Debugger Enable
 
 #else
 
@@ -168,6 +168,7 @@ char dirfiles[20][_MAX_FILENAME];
 void PassDirectory(const char choice);
 FRESULT read_contents (char *path);
 void BTINIT(void);
+void SPIINIT(void);
 void GetBTCommand(const char character);
 void CheckStatus(const char choice);
 void BTfunctions(const char select);
@@ -184,6 +185,7 @@ void ClearSelection(void);
 void ClearDestination(void);
 char UART_RxString(const char character);
 void PutChar(const char character);
+unsigned int writeSPI1(unsigned int a);
 
 // CONSTANTS
 #define USB_MAX_DEVICES 5
@@ -293,8 +295,8 @@ int main(void)
 						volume = 0;
 						res = f_mount(volume, &fatfs[volume]);
 							if (res == FR_OK) {
-							//	DBPRINTF("%x: USB1 Mounted\n", volume);
-							//	PutCharacter('A');
+								DBPRINTF("%x: USB1 Mounted\n", volume);
+								writeSPI1(2);
 								MSD1Mounted = 1;
 							} // if res
 					//	DBPRINTF("0:/%s\n", findfilename("0:", 1));
@@ -307,8 +309,8 @@ int main(void)
 						volume = 1;
 						res = f_mount(volume, &fatfs[volume]);
 							if (res == FR_OK) {
-							//	DBPRINTF("%x: USB2 Mounted\n", volume);
-							//	PutCharacter('B');
+								DBPRINTF("%x: USB2 Mounted\n", volume);
+								writeSPI1(4);
 								MSD2Mounted = 1;
 							} // if res
 						}
@@ -320,8 +322,8 @@ int main(void)
 						volume = 2;
 						res = f_mount(volume, &fatfs[volume]);
 							if (res == FR_OK) {
-							//	DBPRINTF("%x: USB3 Mounted\n", volume);
-							//	PutCharacter('C');
+								DBPRINTF("%x: USB3 Mounted\n", volume);
+								writeSPI1(6);
 								MSD3Mounted = 1;
 							} // if res
 					//	DBPRINTF("2:/%s\n", findfilename("2:", 1));
@@ -334,8 +336,8 @@ int main(void)
 						volume = 3;
 						res = f_mount(volume, &fatfs[volume]);
 							if (res == FR_OK) {
-							//	DBPRINTF("%x: USB4 Mounted\n", volume);
-							//	PutCharacter('D');
+								DBPRINTF("%x: USB4 Mounted\n", volume);
+								writeSPI1(8);
 								MSD4Mounted = 1;
 							} // if res
 						}
@@ -402,7 +404,7 @@ BOOL USB_ApplicationEventHandler( BYTE address, USB_EVENT event, void *data, DWO
             }
             else
             {
-                DBPRINTF( "\n***** USB Error - device requires too much current *****\n" );
+             //   DBPRINTF( "\n***** USB Error - device requires too much current *****\n" );
             }
             return TRUE;
 
@@ -426,22 +428,18 @@ BOOL USB_ApplicationEventHandler( BYTE address, USB_EVENT event, void *data, DWO
 			switch (CurrentPort){
 				case 1:
 					MSD1Attached = 1;
-					PutCharacter('A');
 					break;
 
 				case 2:
 					MSD2Attached = 1;
-					PutCharacter('B');
 					break;
 
 				case 3:
 					MSD3Attached = 1;
-					PutCharacter('C');
 					break;
 
 				case 4:
 					MSD4Attached = 1;
-					PutCharacter('D');
 					break;
 
 				default:
@@ -461,40 +459,40 @@ BOOL USB_ApplicationEventHandler( BYTE address, USB_EVENT event, void *data, DWO
 			switch (CurrentPort){
 				case 1:
 					MSD1Attached = 0;
-				//	PutCharacter('w');
-					res = f_mount(volume, NULL);
+					writeSPI1(12);
+					res = f_mount(0, NULL);
 					if (res == FR_OK) {
-					//	DBPRINTF("%x: MSD Device Unmounted\n", volume);
+						DBPRINTF("%x: MSD Device Unmounted\n", volume);
 						MSD1Mounted = 0;
 					}
 					break;
 
 				case 2:
 					MSD2Attached = 0;
-				//	PutCharacter('x');
-					res = f_mount(volume, NULL);
+					writeSPI1(12);
+					res = f_mount(1, NULL);
 					if (res == FR_OK) {
-					//	DBPRINTF("%x: MSD Device Unmounted\n", volume);
+						DBPRINTF("%x: MSD Device Unmounted\n", volume);
 						MSD2Mounted = 0;
 					}
 					break;
 
 				case 3:
 					MSD3Attached = 0;
-				//	PutCharacter('y');
-					res = f_mount(volume, NULL);
+					writeSPI1(12);
+					res = f_mount(2, NULL);
 					if (res == FR_OK) {
-					//	DBPRINTF("%x: MSD Device Unmounted\n", volume);
+						DBPRINTF("%x: MSD Device Unmounted\n", volume);
 						MSD3Mounted = 0;
 					}				
 					break;
 
 				case 4:
 					MSD4Attached = 0;
-				//	PutCharacter('z');
+					writeSPI1(12);
 					res = f_mount(volume, NULL);
 					if (res == FR_OK) {
-					//	DBPRINTF("%x: MSD Device Unmounted\n", volume);
+						DBPRINTF("%x: MSD Device Unmounted\n", volume);
 						MSD4Mounted = 0;
 					}
 					break;
@@ -542,13 +540,14 @@ BOOL USB_ApplicationEventHandler( BYTE address, USB_EVENT event, void *data, DWO
     return FALSE;
 }
 
-
 static unsigned int _excep_code;
 static unsigned int _excep_addr;
 
 // this function overrides the normal _weak_ generic handler
 void _general_exception_handler(void)
 {
+
+//	writeSPI1(12);
     asm volatile("mfc0 %0,$13" : "=r" (_excep_code));
     asm volatile("mfc0 %0,$14" : "=r" (_excep_addr));
 
@@ -770,6 +769,14 @@ char *getextension(char *fn) {
 
 }
 
+unsigned int writeSPI1(unsigned int a) {
+
+         putcSPI1(a);                 //Sends hex data unsigned int data to slave
+         int receive = SPI1BUF;            //Read SP1BUF (dummy read)
+         SPI1BUF = 0x0;                  //Write SP1BUF- sets Tx flag, if not done read will not clock
+         return getcSPI1();            //Generates clock and reads SDO
+}
+
 void BTINIT (void) {
 	#if defined (__32MX220F032D__) || defined (__32MX250F128D__)
     PPSInput(2,U2RX,RPB5); // Assign RPB5 as input pin for U2RX
@@ -788,21 +795,40 @@ void BTINIT (void) {
     // Explorer-16 LEDs are on lower 8-bits of PORTA and to use all LEDs, JTAG port must be disabled.
     //mJTAGPortEnable(DEBUG_JTAGPORT_OFF);
 
-    mPORTDClearBits(BIT_0); 		// Turn off RA7 on startup.
-    mPORTDSetPinsDigitalOut(BIT_0);	// Make RA7 as output.
+// RB0 = 72 - GREEN
+// RB1 = 70 - RED
+// RB2 = 68 - YELLOW
 
+    mPORTBClearBits(BIT_0); 		// Turn off RB0, RB1, RB2 bits on startup.
+    mPORTBSetPinsDigitalOut(BIT_0);	// Make RB0, RB1, RB2 as output.
+    mPORTBClearBits(BIT_1); 		// Turn off RB0, RB1, RB2 bits on startup.
+    mPORTBSetPinsDigitalOut(BIT_1);	// Make RB0, RB1, RB2 as output.
+    mPORTBClearBits(BIT_2); 		// Turn off RB0, RB1, RB2 bits on startup.
+    mPORTBSetPinsDigitalOut(BIT_2);	// Make RB0, RB1, RB2 as output.
+
+/*
     // Configure UART1 module, set buad rate, turn on UART, etc.
     UARTConfigure(UART_MODULE_ID_1,UART_ENABLE_PINS_TX_RX_ONLY);
     UARTSetFifoMode(UART_MODULE_ID_1, UART_INTERRUPT_ON_TX_NOT_FULL | UART_INTERRUPT_ON_RX_NOT_EMPTY);
     UARTSetLineControl(UART_MODULE_ID_1, UART_DATA_SIZE_8_BITS | UART_PARITY_NONE | UART_STOP_BITS_1);
     UARTSetDataRate(UART_MODULE_ID_1, GetPeripheralClock(), DESIRED_BAUDRATE);
     UARTEnable(UART_MODULE_ID_1, UART_ENABLE_FLAGS(UART_PERIPHERAL | UART_RX | UART_TX));
-/*
+
 	 // Configure UART1 RX Interrupt
     INTEnable(INT_SOURCE_UART_RX(UART_MODULE_ID_1), INT_ENABLED);
     INTSetVectorPriority(INT_VECTOR_UART(UART_MODULE_ID_1), INT_PRIORITY_LEVEL_2);
     INTSetVectorSubPriority(INT_VECTOR_UART(UART_MODULE_ID_1), INT_SUB_PRIORITY_LEVEL_2);	
 */
+
+   //SPI setup
+   int rData = SPI1BUF;    //Clears receive buffer
+   IFS0CLR = 0x03800000;   //Clears any existing event (rx / tx/ fault interrupt)
+   SPI1STATCLR = 0x40;      //Clears overflow
+   //Enables the SPI channel (channel, master mode enable | use 8 bit mode | turn on, clock divider)
+   SpiChnOpen(1, SPI_CON_MSTEN | SPI_CON_MODE8 | SPI_CON_ON, 4l);   // divide fpb by 4, configure the I/O ports.
+
+    //SpiChnOpen( 1, SPICON_MSTEN | SPICON_CKE | SPICON_ON, 20 );	
+	
 	 // Configure UART2 module, set buad rate, turn on UART, etc.
     UARTConfigure(UART_MODULE_ID_2,UART_ENABLE_PINS_CTS_RTS | UART_RTS_WHEN_RX_NOT_FULL);
     UARTSetFifoMode(UART_MODULE_ID_2, UART_INTERRUPT_ON_TX_NOT_FULL | UART_INTERRUPT_ON_RX_NOT_EMPTY);
@@ -854,54 +880,59 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 
 		DBPRINTF("%c", character);
 
+
 		// GET DIRECTORY
 
 		if (character == 'E' && renaming == 0) { // USB 1 Selected
 			InitSelected();
-		//	ClearSelection();
+			writeSPI1(2);
 			if (MSD1Attached) {
-		//	PutInteger(1);
-			PutCharacter('A');
 			USB1Selected = 1;
 			strncpy(root, "0:", 3);
 			read_contents(root);
+			}
+			else {
+		//	writeSPI1(12);
 			}
 		}
 
 		else if (character == 'F' && renaming == 0) { // USB 2 Selected
 			InitSelected();
-		//	ClearSelection();
+			writeSPI1(4);
 			if (MSD2Attached) {
-		//	PutInteger(3);
-			PutCharacter('B');
+		//	writeSPI1(4);
 			USB2Selected = 1;
 			strncpy(root, "1:", 3);
 			read_contents(root);
+			}
+			else {
+		//	writeSPI1(12);
 			}
 		}
 
 		else if (character == 'G' && renaming == 0) { // USB 3 Selected
 			InitSelected();
-		//	ClearSelection();
+			writeSPI1(6);
 			if (MSD3Attached) {
-		//	PutInteger(5);
-			PutCharacter('C');
 			USB3Selected = 1;
 			strncpy(root, "2:", 3);
 			read_contents(root);
+			}
+			else {
+		//	writeSPI1(12);
 			}
 		}	
 
 		else if (character == 'H' && renaming == 0) { // USB 4 Selected
 			InitSelected();
-		//	ClearSelection();
-			if (MSD4Attached) {
-		//	PutInteger(7);
-			PutCharacter('D');
+			writeSPI1(8);
+ 			if (MSD4Attached) {
 			USB4Selected = 1;
 			strncpy(root, "3:", 3);
 			read_contents(root);
-//			PassDirectory(character);
+			}
+			else {
+		//	writeSPI1(12);
 			}
 		}
 
@@ -1059,8 +1090,10 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 */
 
 		else if (character == 'i' && renaming == 0) { // Paste files
+		mPORTBSetBits(BIT_2);
 		StartCount = ReadCoreTimer();
 			for (n = 0; n < k; n++) {
+			    mPORTBClearBits(BIT_0 | BIT_1); 
 				for (b=0; b<d; b++) {
 					strncpy(destpath[b], destdrv[b], 3);
 					strncat(destpath[b], selection[n].selectfile, strlen(selection[n].selectfile)+3);
@@ -1075,19 +1108,24 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 				else if (d==3) {
 				res = f_copy(selection[n].selectpath, destpath[0], destpath[1], destpath[2]);
 				}
-				if (res == FR_OK) {
+				if (res == FR_OK) {	
 					DBPRINTF("d");
+					mPORTASetBits(BIT_0);
 				//	PutInteger(1);
-					PutCharacter('J');
+				//	PutCharacter('J');
 				}
 				else {
 					DBPRINTF("f");
+					mPORTASetBits(BIT_1);
 				//	PutInteger(2);
-					PutCharacter('K');
+				//	PutCharacter('K');
 				}
+			//	mPORTBClearBits(BIT_0 | BIT_1); 
 			}
 		FileTime = (ReadCoreTimer()-StartCount)/40000L;
 		DBPRINTF("t %lu\n", FileTime);
+		mPORTBClearBits(BIT_2);
+		writeSPI1(10);
 		ClearSelection();
 		}
 
@@ -1095,30 +1133,42 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 		// DELETE FILES
 
 		else if (character == 'q' && renaming == 0) { // Delete files
+		mPORTBSetBits(BIT_2);
 		StartCount = ReadCoreTimer();
+	//	writeSPI1(14);
 		for (n = 0; n < k; n++) {
+	//		mPORTBClearBits(BIT_0 | BIT_1); 
 			res = f_unlink(selection[n].selectpath);
 			if (res == FR_OK) {
+			//	LEDSuccess();
+				mPORTBSetBits(BIT_0);
 				DBPRINTF("d");
 			//	PutInteger(1);
-				PutCharacter('J');
+			//	PutCharacter('J');
 			}
 			else {
+			//	LEDFail();
+				mPORTBSetBits(BIT_1);
 				DBPRINTF("f");
 			//	PutInteger(2);
-				PutCharacter('K');
+			//	PutCharacter('K');
 			}
+		//	mPORTBClearBits(BIT_0 | BIT_1); 
 		}
 		FileTime = (ReadCoreTimer()-StartCount)/40000L;
 		DBPRINTF("t %lu\n", FileTime);
+		writeSPI1(10);
+		mPORTBClearBits(BIT_2);
 		ClearSelection();
 		}
 
 		// MOVE FILES
 
 		else if (character == 'j' && renaming == 0) {
+		mPORTBSetBits(BIT_2);
 		StartCount = ReadCoreTimer();
 		for (n = 0; n < k; n++) {
+				mPORTBClearBits(BIT_0 | BIT_1); 
 				for (b=0; b<d; b++) {
 					strncpy(destpath[b], destdrv[b], 3);
 					strncat(destpath[b], selection[n].selectfile, strlen(selection[n].selectfile)+3);
@@ -1137,22 +1187,28 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 					DBPRINTF("d");
 					res = f_unlink(selection[n].selectpath);
 					if (res == FR_OK) {
+						mPORTBSetBits(BIT_0);
 						DBPRINTF("d");
 					//	PutInteger(1);
-						PutCharacter('J');
+					//	PutCharacter('J');
 					}
 					else {
+						mPORTBSetBits(BIT_1);
 						DBPRINTF("f");
 					}
 				}
 				else {
+					mPORTBSetBits(BIT_1);
 					DBPRINTF("f");
 				//	PutInteger(2);
-					PutCharacter('K');
+				//	PutCharacter('K');
 				}
+			//	mPORTBClearBits(BIT_0 | BIT_1); 
 			}
 		FileTime = (ReadCoreTimer()-StartCount)/40000L;
 		DBPRINTF("t %lu\n", FileTime);
+		writeSPI1(10);
+		mPORTBClearBits(BIT_2);
 		ClearSelection();
 		}
 
@@ -1190,6 +1246,7 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 		}
 */
 		else if (character != ' ' && renaming == 1) {
+			mPORTBSetBits(BIT_2);
 			UART_RxString(character);
 			if (RXdone) {
 				strncpy(newname, rxstring, strlen(rxstring));
@@ -1200,17 +1257,21 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 				StartCount = ReadCoreTimer();
 				res = f_rename(oldname, newname);
 				if (res == FR_OK) {
+					mPORTBSetBits(BIT_0);
 					DBPRINTF("d\n");
 				//	PutInteger(1);
-					PutCharacter('J');
+				//	PutCharacter('J');
 				}
 				else {
+					mPORTBSetBits(BIT_1);
 					DBPRINTF("f\n");
 				//	PutInteger(2);
-					PutCharacter('K');
+				//	PutCharacter('K');
 				}
 			FileTime = (ReadCoreTimer()-StartCount)/40000L;
 			DBPRINTF("t %lu\n", FileTime);
+			writeSPI1(10);
+			mPORTBClearBits(BIT_2);
 			RXdone = 0;
 			renaming = 0;
 			memset(oldname, 0, sizeof(oldname));
@@ -1231,13 +1292,14 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 			ClearSelection();
 
 		}		
-
+/*
 		else if (character == 'l' && renaming == 0) {
 
-			PutCharacter('I');
+			writeSPI1(16);
 		}
-
+*/
 		DelayMs(10);
+		mPORTBClearBits(BIT_0 | BIT_1); 
 }
 
 // *****************************************************************************
@@ -1292,7 +1354,7 @@ char UART_RxString(const char character){
        return rxstring;    // return the contents of uart
 }
 
-
+/*
 void PutCharacter(const char character)
 {
         while(!UARTTransmitterIsReady(UART_MODULE_ID_1))
@@ -1304,7 +1366,7 @@ void PutCharacter(const char character)
         while(!UARTTransmissionHasCompleted(UART_MODULE_ID_1))
             ;
 }
-/*
+
 // UART 1 interrupt handler, set at priority level 2
 
 void __ISR(_UART1_VECTOR, ipl2) IntUart1Handler(void)
