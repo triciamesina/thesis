@@ -114,11 +114,16 @@
 
 #endif
 
-#define UART_MODULE_ID_1 UART1  // PIM is connected to Explorer through UART1 module
+// CONSTANTS
+
 #define UART_MODULE_ID_2 UART2 // PIM is connected to Explorer through UART2 module
-#define DESIRED_BAUDRATE (9600) //The desired BaudRate
+#define DESIRED_BAUDRATE (9600) // The desired BaudRate
 #define _MAX_FILENAME 13
 #define _MAX_PATHNAME 15
+#define USB_MAX_DEVICES 5
+#define MAX_ALLOWED_CURRENT	(500)
+
+// STRUCT TYPEDEF
 
 typedef struct _select_fn {
 
@@ -186,12 +191,6 @@ void ClearDestination(void);
 char UART_RxString(const char character);
 void PutChar(const char character);
 unsigned int writeSPI1(unsigned int a);
-
-// CONSTANTS
-#define USB_MAX_DEVICES 5
-#define MAX_ALLOWED_CURRENT	(500)
-
-
 
 int main(void)
 {
@@ -459,7 +458,7 @@ BOOL USB_ApplicationEventHandler( BYTE address, USB_EVENT event, void *data, DWO
 			switch (CurrentPort){
 				case 1:
 					MSD1Attached = 0;
-					writeSPI1(12);
+					writeSPI1(10);
 					res = f_mount(0, NULL);
 					if (res == FR_OK) {
 						DBPRINTF("%x: MSD Device Unmounted\n", volume);
@@ -469,7 +468,7 @@ BOOL USB_ApplicationEventHandler( BYTE address, USB_EVENT event, void *data, DWO
 
 				case 2:
 					MSD2Attached = 0;
-					writeSPI1(12);
+					writeSPI1(10);
 					res = f_mount(1, NULL);
 					if (res == FR_OK) {
 						DBPRINTF("%x: MSD Device Unmounted\n", volume);
@@ -479,7 +478,7 @@ BOOL USB_ApplicationEventHandler( BYTE address, USB_EVENT event, void *data, DWO
 
 				case 3:
 					MSD3Attached = 0;
-					writeSPI1(12);
+					writeSPI1(10);
 					res = f_mount(2, NULL);
 					if (res == FR_OK) {
 						DBPRINTF("%x: MSD Device Unmounted\n", volume);
@@ -489,7 +488,7 @@ BOOL USB_ApplicationEventHandler( BYTE address, USB_EVENT event, void *data, DWO
 
 				case 4:
 					MSD4Attached = 0;
-					writeSPI1(12);
+					writeSPI1(10);
 					res = f_mount(volume, NULL);
 					if (res == FR_OK) {
 						DBPRINTF("%x: MSD Device Unmounted\n", volume);
@@ -547,7 +546,8 @@ static unsigned int _excep_addr;
 void _general_exception_handler(void)
 {
 
-//	writeSPI1(12);
+	mPORTBSetBits(BIT_1);
+	mPORTBClearBits(BIT_2);
     asm volatile("mfc0 %0,$13" : "=r" (_excep_code));
     asm volatile("mfc0 %0,$14" : "=r" (_excep_addr));
 
@@ -799,6 +799,7 @@ void BTINIT (void) {
 // RB1 = 70 - RED
 // RB2 = 68 - YELLOW
 
+	mPORTDClearBits(BIT_0);
     mPORTBClearBits(BIT_0); 		// Turn off RB0, RB1, RB2 bits on startup.
     mPORTBSetPinsDigitalOut(BIT_0);	// Make RB0, RB1, RB2 as output.
     mPORTBClearBits(BIT_1); 		// Turn off RB0, RB1, RB2 bits on startup.
@@ -806,29 +807,13 @@ void BTINIT (void) {
     mPORTBClearBits(BIT_2); 		// Turn off RB0, RB1, RB2 bits on startup.
     mPORTBSetPinsDigitalOut(BIT_2);	// Make RB0, RB1, RB2 as output.
 
-/*
-    // Configure UART1 module, set buad rate, turn on UART, etc.
-    UARTConfigure(UART_MODULE_ID_1,UART_ENABLE_PINS_TX_RX_ONLY);
-    UARTSetFifoMode(UART_MODULE_ID_1, UART_INTERRUPT_ON_TX_NOT_FULL | UART_INTERRUPT_ON_RX_NOT_EMPTY);
-    UARTSetLineControl(UART_MODULE_ID_1, UART_DATA_SIZE_8_BITS | UART_PARITY_NONE | UART_STOP_BITS_1);
-    UARTSetDataRate(UART_MODULE_ID_1, GetPeripheralClock(), DESIRED_BAUDRATE);
-    UARTEnable(UART_MODULE_ID_1, UART_ENABLE_FLAGS(UART_PERIPHERAL | UART_RX | UART_TX));
+    //SPI setup
+    int rData = SPI1BUF;    //Clears receive buffer
+    IFS0CLR = 0x03800000;   //Clears any existing event (rx / tx/ fault interrupt)
+    SPI1STATCLR = 0x40;      //Clears overflow
+    //Enables the SPI channel (channel, master mode enable | use 8 bit mode | turn on, clock divider)
+    SpiChnOpen(1, SPI_CON_MSTEN | SPI_CON_MODE8 | SPI_CON_ON, 4);   // divide fpb by 4, configure the I/O ports.
 
-	 // Configure UART1 RX Interrupt
-    INTEnable(INT_SOURCE_UART_RX(UART_MODULE_ID_1), INT_ENABLED);
-    INTSetVectorPriority(INT_VECTOR_UART(UART_MODULE_ID_1), INT_PRIORITY_LEVEL_2);
-    INTSetVectorSubPriority(INT_VECTOR_UART(UART_MODULE_ID_1), INT_SUB_PRIORITY_LEVEL_2);	
-*/
-
-   //SPI setup
-   int rData = SPI1BUF;    //Clears receive buffer
-   IFS0CLR = 0x03800000;   //Clears any existing event (rx / tx/ fault interrupt)
-   SPI1STATCLR = 0x40;      //Clears overflow
-   //Enables the SPI channel (channel, master mode enable | use 8 bit mode | turn on, clock divider)
-   SpiChnOpen(1, SPI_CON_MSTEN | SPI_CON_MODE8 | SPI_CON_ON, 4l);   // divide fpb by 4, configure the I/O ports.
-
-    //SpiChnOpen( 1, SPICON_MSTEN | SPICON_CKE | SPICON_ON, 20 );	
-	
 	 // Configure UART2 module, set buad rate, turn on UART, etc.
     UARTConfigure(UART_MODULE_ID_2,UART_ENABLE_PINS_CTS_RTS | UART_RTS_WHEN_RX_NOT_FULL);
     UARTSetFifoMode(UART_MODULE_ID_2, UART_INTERRUPT_ON_TX_NOT_FULL | UART_INTERRUPT_ON_RX_NOT_EMPTY);
@@ -885,54 +870,57 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 
 		if (character == 'E' && renaming == 0) { // USB 1 Selected
 			InitSelected();
-			writeSPI1(2);
+		//	writeSPI1(2);
 			if (MSD1Attached) {
+			writeSPI1(2);
 			USB1Selected = 1;
 			strncpy(root, "0:", 3);
 			read_contents(root);
 			}
-			else {
-		//	writeSPI1(12);
+			else if (!MSD1Attached) {
+			writeSPI1(10);
 			}
 		}
 
 		else if (character == 'F' && renaming == 0) { // USB 2 Selected
 			InitSelected();
-			writeSPI1(4);
-			if (MSD2Attached) {
 		//	writeSPI1(4);
+			if (MSD2Attached) {
+			writeSPI1(4);
 			USB2Selected = 1;
 			strncpy(root, "1:", 3);
 			read_contents(root);
 			}
-			else {
-		//	writeSPI1(12);
+			else if (!MSD2Attached) {
+			writeSPI1(10);
 			}
 		}
 
 		else if (character == 'G' && renaming == 0) { // USB 3 Selected
 			InitSelected();
-			writeSPI1(6);
+		//	writeSPI1(6);
 			if (MSD3Attached) {
+			writeSPI1(6);
 			USB3Selected = 1;
 			strncpy(root, "2:", 3);
 			read_contents(root);
 			}
-			else {
-		//	writeSPI1(12);
+			else if (!MSD3Attached) {
+			writeSPI1(10);
 			}
 		}	
 
 		else if (character == 'H' && renaming == 0) { // USB 4 Selected
 			InitSelected();
-			writeSPI1(8);
+		//	writeSPI1(8);
  			if (MSD4Attached) {
+			writeSPI1(8);
 			USB4Selected = 1;
 			strncpy(root, "3:", 3);
 			read_contents(root);
 			}
-			else {
-		//	writeSPI1(12);
+			else if (!MSD4Attached) {
+			writeSPI1(10);
 			}
 		}
 
@@ -1090,6 +1078,7 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 */
 
 		else if (character == 'i' && renaming == 0) { // Paste files
+		writeSPI1(12);
 		mPORTBSetBits(BIT_2);
 		StartCount = ReadCoreTimer();
 			for (n = 0; n < k; n++) {
@@ -1110,13 +1099,13 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 				}
 				if (res == FR_OK) {	
 					DBPRINTF("d");
-					mPORTASetBits(BIT_0);
+					mPORTBSetBits(BIT_0);
 				//	PutInteger(1);
 				//	PutCharacter('J');
 				}
 				else {
 					DBPRINTF("f");
-					mPORTASetBits(BIT_1);
+					mPORTBSetBits(BIT_1);
 				//	PutInteger(2);
 				//	PutCharacter('K');
 				}
@@ -1124,8 +1113,8 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 			}
 		FileTime = (ReadCoreTimer()-StartCount)/40000L;
 		DBPRINTF("t %lu\n", FileTime);
+		writeSPI1(14);
 		mPORTBClearBits(BIT_2);
-		writeSPI1(10);
 		ClearSelection();
 		}
 
@@ -1133,6 +1122,7 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 		// DELETE FILES
 
 		else if (character == 'q' && renaming == 0) { // Delete files
+		writeSPI1(12);
 		mPORTBSetBits(BIT_2);
 		StartCount = ReadCoreTimer();
 	//	writeSPI1(14);
@@ -1157,7 +1147,7 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 		}
 		FileTime = (ReadCoreTimer()-StartCount)/40000L;
 		DBPRINTF("t %lu\n", FileTime);
-		writeSPI1(10);
+		writeSPI1(14);
 		mPORTBClearBits(BIT_2);
 		ClearSelection();
 		}
@@ -1165,6 +1155,7 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 		// MOVE FILES
 
 		else if (character == 'j' && renaming == 0) {
+		writeSPI1(12);
 		mPORTBSetBits(BIT_2);
 		StartCount = ReadCoreTimer();
 		for (n = 0; n < k; n++) {
@@ -1207,7 +1198,7 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 			}
 		FileTime = (ReadCoreTimer()-StartCount)/40000L;
 		DBPRINTF("t %lu\n", FileTime);
-		writeSPI1(10);
+		writeSPI1(14);
 		mPORTBClearBits(BIT_2);
 		ClearSelection();
 		}
@@ -1246,6 +1237,7 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 		}
 */
 		else if (character != ' ' && renaming == 1) {
+			writeSPI1(12);
 			mPORTBSetBits(BIT_2);
 			UART_RxString(character);
 			if (RXdone) {
@@ -1270,7 +1262,7 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 				}
 			FileTime = (ReadCoreTimer()-StartCount)/40000L;
 			DBPRINTF("t %lu\n", FileTime);
-			writeSPI1(10);
+			writeSPI1(14);
 			mPORTBClearBits(BIT_2);
 			RXdone = 0;
 			renaming = 0;
@@ -1292,12 +1284,12 @@ void GetBTCommand(const char character) { // INTERRUPT EVENT HANDLER
 			ClearSelection();
 
 		}		
-/*
+
 		else if (character == 'l' && renaming == 0) {
 
-			writeSPI1(16);
+//			writeSPI1(1);
 		}
-*/
+
 		DelayMs(10);
 		mPORTBClearBits(BIT_0 | BIT_1); 
 }
