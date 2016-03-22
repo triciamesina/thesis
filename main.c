@@ -132,9 +132,12 @@
 
 typedef struct _select_fn {
 
-	const char root[3];
-	const char selectfile[_MAX_FILENAME];
-	const char selectpath[_MAX_PATHNAME];
+	int drv;
+	char root[3];
+	char selectfile[_MAX_FILENAME];
+	char selectpath[_MAX_PATHNAME];
+	char dest[3][3];
+	char destpaths[3][_MAX_PATHNAME];
 
 } select_fn; 
 
@@ -145,6 +148,16 @@ typedef struct _directory_list {
 
 } directory_list;
 
+typedef struct _list_buffer {
+
+	int src; // source drive
+	char srcroot[3]; // source root directory
+	char srcfile[_MAX_FILENAME]; // source filename
+	char srcpath[_MAX_PATHNAME]; // source pathname
+	char destdrv[3][3];
+
+} list_buffer;
+    
 // GLOBAL VARIABLES
 BOOL HubAttached;  // flag if hub device is attached
 BYTE DeviceNumber;
@@ -174,14 +187,13 @@ int renaming = 0; // rename flag
 char newname[_MAX_FILENAME]; // new name
 char oldname[_MAX_PATHNAME]; // old name
 char ext[5]; // filename extension
-//unsigned long int StartCount, FileTime; // Core timer values
+unsigned long int StartCount, FileTime; // Core timer values
 const char destdrv[3][3]; // destination drive directory
 select_fn selection[_MAX_SELECTION]; //selected filenames
-directory_list directory[4];
 char dirfiles[_MAX_DIR_ENTRIES][_MAX_FILENAME]; // loaded directory files
 extern BYTE CurrentPort;
-int dest[3]; // destination drive
-int currentDrv; // current drive selected
+directory_list directory[4];
+list_buffer listbuff;
 
 // FUNCTION PROTOTYPES
 FRESULT read_contents (char *path);
@@ -193,12 +205,14 @@ void GetBTCommand(const char character);
 void SendDataBuffer(const char *buffer, UINT32 size);
 void WriteString(const char *string);
 char *findfilename (char* path, int index);
+void PutCharacter(const char character);
+void PutInteger(unsigned int integer);
 void ClearSelection(void);
+void ClearBuffer(void);
 void ClearDestination(void);
 char UART_RxString(const char character);
 void PutChar(const char character);
 unsigned int writeSPI1(unsigned int a);
-FRESULT read_directory(char *path, int drv);
 
 int main(void)
 {
@@ -260,7 +274,6 @@ int main(void)
 							if (res == FR_OK) {
 								writeSPI1(8);
 								MSD1Mounted = 1;
-								read_directory("0:", 0);
 							} // if res
 						}
 					}
@@ -273,7 +286,6 @@ int main(void)
 							if (res == FR_OK) {
 								writeSPI1(8);
 								MSD2Mounted = 1;
-								read_directory("1:", 1);
 							} // if res
 						}
 					}
@@ -286,7 +298,6 @@ int main(void)
 							if (res == FR_OK) {
 								writeSPI1(8);
 								MSD3Mounted = 1;
-								read_directory("2:", 2);
 							} // if res
 						}
 					}
@@ -299,7 +310,6 @@ int main(void)
 							if (res == FR_OK) {
 								writeSPI1(8);
 								MSD4Mounted = 1;
-								read_directory("3:", 3);
 							} // if res
 						}
 					}
@@ -514,6 +524,53 @@ void _general_exception_handler(void)
 /* FILE SYSTEM FUNCTIONS							                     */
 /*-----------------------------------------------------------------------*/
 /*-----------------------------------------------------------------------*/
+/* Read directory contents							                     */
+/*-----------------------------------------------------------------------*/
+/*    
+FRESULT read_contents (
+    char *path        /* Start node to be scanned (also used as work area) 
+)
+{
+    FRESULT res;
+    FILINFO fno;
+    DIR dir;
+    int i, j, a;
+	const char *fn;
+	char filepath[_MAX_PATHNAME];
+
+	for (i=0; i<j; i++) {
+		memset(dirfiles[i], 0, sizeof(dirfiles[i]));
+	}
+	
+	j = 0;
+
+    res = f_opendir(&dir, path);                       /* Open the directory 
+    if (res == FR_OK) {
+        i = strlenpgm(path);
+        for (;;) {
+
+			res = f_readdir(&dir, &fno);                   /* Read a directory item 
+            if (res != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir 
+            if (fno.fname[0] == '.') continue;             /* Ignore dot entry 
+
+			fn = fno.fname;
+       
+			strncpy(dirfiles[j], fn, strlen(fn)+1);
+			strncpy(filepath, root, strlen(root)+1);
+			strncat(filepath, fn, strlen(fn)+3);
+//			SendDataBuffer(dirfiles[j], strlenpgm(dirfiles[j]));
+			SendDataBuffer(filepath, strlenpgm(filepath));
+     		SendDataBuffer(" ", strlen(" "));
+
+			j++;
+		}
+    }
+		
+     		SendDataBuffer("/", strlen("/"));
+    return res;
+}
+*/
+/*-----------------------------------------------------------------------*/
 /* Load directory contents							                     */
 /*-----------------------------------------------------------------------*/
     
@@ -562,23 +619,22 @@ FRESULT read_directory (
 /*-----------------------------------------------------------------------*/
 
 FRESULT f_copy (
-	const char sourcefile[_MAX_FILENAME],
 	const char sourcename[_MAX_PATHNAME],
 	const char destname1[_MAX_PATHNAME], 
 	const char destname2[_MAX_PATHNAME], 
 	const char destname3[_MAX_PATHNAME]
 ) {
     
-    BYTE buffer[65536];   /* File copy buffer */
+    BYTE buffer[51200];   /* File copy buffer */
     FRESULT fr, fr1, fr2, fr3;          /* FatFs function common result code */
 	FRESULT fropensrc;
     UINT br, bw;         /* File read/write count */
     static FIL fsrc, fdst1, fdst2, fdst3;
-	unsigned long starttime, readtime, writetime;
-	int i;
-	i = 0;
-//	starttime = ReadCoreTimer();
+
 	copying = 1;
+//	DBPRINTF("s");
+
+//			DBPRINTF("%s %s %s %s\n", sourcename, destname1, destname2, destname3);
 
             fropensrc = f_open(&fsrc, sourcename, FA_READ | FA_OPEN_ALWAYS);
 			if (fropensrc) {
@@ -586,41 +642,12 @@ FRESULT f_copy (
 				return (int) fr;
 			}	
 			            
-			while (strlen(directory[dest[0]].dirfiles[i]) != 0)  {
-				if (!memcmp(sourcefile, directory[dest[0]].dirfiles[i],strlen(sourcefile))) {
-					i++;
-				}
-				else {
-			//		DBPRINTF("o ");
-					break;
-				}
-			}
             fr1 = f_open(&fdst1, destname1, FA_WRITE | FA_CREATE_ALWAYS);
 
 			if (destname2 != "") {
-
-				while (strlen(directory[dest[1]].dirfiles[i]) != 0)  {
-					if (!memcmp(sourcefile, directory[dest[1]].dirfiles[i],strlen(sourcefile))) {
-						i++;
-					}
-					else {
-						DBPRINTF("o ");
-						break;
-					}
-				}
-				fr2 = f_open(&fdst2, destname2, FA_WRITE | FA_CREATE_ALWAYS);
+			fr2 = f_open(&fdst2, destname2, FA_WRITE | FA_CREATE_ALWAYS);
 				if (destname3 != "") {
-
-					while (strlen(directory[dest[2]].dirfiles[i]) != 0)  {
-						if (!memcmp(sourcefile, directory[dest[2]].dirfiles[i],strlen(sourcefile))) {
-							i++;
-						}
-						else {
-							DBPRINTF("o ");
-							break;
-						}
-					}
-					fr3 = f_open(&fdst3, destname3, FA_WRITE | FA_CREATE_ALWAYS);
+				fr3 = f_open(&fdst3, destname3, FA_WRITE | FA_CREATE_ALWAYS);
 				}
 			}
 			
@@ -630,34 +657,21 @@ FRESULT f_copy (
 				return (int) fr1;
 			}
 
-//		readtime = FILETIME_MS((ReadCoreTimer()-starttime));
-//		DBPRINTF(" %lu ", readtime);
     /* Copy source to destination */
     for (;;) {
-//		starttime = ReadCoreTimer();
         fr = f_read(&fsrc, buffer, sizeof buffer, &br);  /* Read a chunk of source file */
         if (fr || br == 0) break; /* error or eof */
-//		readtime = FILETIME_MS((ReadCoreTimer()-starttime));
-//		DBPRINTF(" %lu ", readtime);
-//		starttime = ReadCoreTimer();
+
 		fr = f_write(&fdst1, buffer, br, &bw);            /* Write it to the destination file */
 		if ((fr || bw < br) && fr2 && fr3) break;
-//		writetime = FILETIME_MS((ReadCoreTimer()-starttime));
-//		DBPRINTF(" %lu ", writetime);
 		f_sync(&fdst1);
 		if (!fr2 && destname2 != "") {
-//			starttime = ReadCoreTimer();
 			fr = f_write(&fdst2, buffer, br, &bw);            /* Write it to the destination file */
         	if ((fr || bw < br) && fr3) break; /* error or disk full */	
-//			writetime = FILETIME_MS((ReadCoreTimer()-starttime));
-//			DBPRINTF(" %lu ", writetime);
 			f_sync(&fdst2);		
 				if (!fr3 && destname3 != "") {
-//					starttime = ReadCoreTimer();
 			        fr = f_write(&fdst3, buffer, br, &bw);            /* Write it to the destination file */
 			        if (fr || bw < br) break; /* error or disk full */
-//					writetime = FILETIME_MS((ReadCoreTimer()-starttime));
-//					DBPRINTF(" %lu\n", writetime);
 					f_sync(&fdst3);
 				}
 		}
@@ -750,7 +764,7 @@ void SPIINIT(void) {
     IFS0CLR = 0x03800000;   //Clears any existing event (rx / tx/ fault interrupt)
     SPI1STATCLR = 0x40;      //Clears overflow
     //Enables the SPI channel (channel, master mode enable | use 8 bit mode | turn on, clock divider)
-    SpiChnOpen(1, SPI_CON_MSTEN | SPI_CON_MODE8 | SPI_CON_ON, 10); // SCK = Fpb/4 = 80/4 = 8 MHz
+    SpiChnOpen(1, SPI_CON_MSTEN | SPI_CON_MODE8 | SPI_CON_ON, 2); // SCK = Fpb/4 = 80/4 = 8 MHz
 
 }
 
@@ -792,44 +806,26 @@ void InitSelected (void) {
 
 
 /*-----------------------------------------------------------------------*/
-/* File selection initialization					                     */
-/*-----------------------------------------------------------------------*/
-
-void ClearSelection(void) {
-
-	int j, l, c;
-	for (j = 0; j < k; j++) {
-		memset(selection[j].root, 0, sizeof(selection[j].root));
-		memset(selection[j].selectfile, 0, sizeof(selection[j].selectfile));
-		memset(selection[j].selectpath, 0, sizeof(selection[j].selectpath));
-	}
-	
-	for (c = 0; c < d; c++) {
-		memset(destdrv[c], 0, sizeof(destdrv[c]));;
-		memset(dest[c],0,sizeof(dest[c]));
-	}
-	d = 0;
-	k = 0;
-	m = 0;
-}
-
-
-/*-----------------------------------------------------------------------*/
 /* Send Files over Bluetooth						                     */
 /*-----------------------------------------------------------------------*/
 
-void SendFiles(int drv) {
+void SendFiles(void) {
 
-	int i;
-	
-	while (strlen(directory[drv].dirpath[i]) != 0 && i < _MAX_DIR_ENTRIES) {
-		
-			SendDataBuffer(directory[drv].dirpath[i], strlenpgm(directory[drv].dirpath[i]));
-     		SendDataBuffer("/", strlen("/"));
+	int i, j;
+	for (j = 0; j < 4; j ++) {
+	while (strlen(directory[j].dirpath[i]) != 0 && i < _MAX_DIR_ENTRIES) {
+	//		DBPRINTF("%s ", directory[j].dirpath[i]);
+			SendDataBuffer(directory[j].dirpath[i], strlenpgm(directory[j].dirpath[i]));
+     	//	DBPRINTF("%s ", directory[drv].dirpath[i]);
+			SendDataBuffer(" ", strlen(" "));
 			i++;
+		}
+	SendDataBuffer(",", strlen(","));
+	i =0;
 	}
-	SendDataBuffer(" ", strlen(" "));
+	SendDataBuffer("/", strlen("/"));
 }
+
 
 
 /*-----------------------------------------------------------------------*/
@@ -846,6 +842,44 @@ void ReloadDirectories(void) {
 }
 
 /*-----------------------------------------------------------------------*/
+/* File selection initialization					                     */
+/*-----------------------------------------------------------------------*/
+
+void ClearSelection(void) {
+
+	int j;
+	for (j = 0; j < k; j++) {
+		selection[j].drv = 0;
+		strcpy(selection[j].root, "");
+		strcpy(selection[j].selectfile, "");
+		strcpy(selection[j].selectpath, "");
+		strcpy(selection[j].dest[0], "");
+		strcpy(selection[j].dest[1], "");
+		strcpy(selection[j].dest[2], "");
+		strcpy(selection[j].destpaths[0], "");
+		strcpy(selection[j].destpaths[1], "");
+		strcpy(selection[j].destpaths[2], "");
+	}
+	k = 0;
+}
+
+/*-----------------------------------------------------------------------*/
+/* File buffer initialization					                     */
+/*-----------------------------------------------------------------------*/
+
+void ClearBuff(void) {
+	int z = 0;
+	listbuff.src = 0;
+	memset(listbuff.srcroot, 0, sizeof(listbuff.srcroot));
+	memset(listbuff.srcfile, 0, sizeof(listbuff.srcfile));
+	memset(listbuff.srcpath, 0, sizeof(listbuff.srcpath));
+	for (z = 0; z < d; z++) {	
+	memset(listbuff.destdrv[z], 0, sizeof(listbuff.destdrv[z]));
+	}
+	d = 0;
+}
+
+/*-----------------------------------------------------------------------*/
 /* INTERRUPT EVENT HANDLER							                     */
 /*-----------------------------------------------------------------------*/
 /*-----------------------------------------------------------------------*/
@@ -854,8 +888,6 @@ void ReloadDirectories(void) {
 
 void GetBTCommand(const char character) {
 
-
-		unsigned long int StartCount, FileTime; // Core timer values
 		FRESULT res;
 		int n, b;
 		int index = 0;
@@ -871,9 +903,9 @@ void GetBTCommand(const char character) {
 				if (MSD1Attached) {
 				writeSPI1(4);
 				USB1Selected = 1;
-				currentDrv = 0;
-				strncpy(root, "0:", 3);
-				SendFiles(currentDrv);
+				listbuff.src = 0;
+				strncpy(listbuff.srcroot, "0:", 3);
+		//		read_contents(root);
 			}
 			else if (!MSD1Attached) {
 				writeSPI1(6);
@@ -886,9 +918,9 @@ void GetBTCommand(const char character) {
 			if (MSD2Attached) {
 				writeSPI1(4);
 				USB2Selected = 1;
-				currentDrv = 1;
-				strncpy(root, "1:", 3);
-				SendFiles(currentDrv);
+				listbuff.src = 1;
+				strncpy(listbuff.srcroot, "1:", 3);
+		//		read_contents(root);
 			}
 			else if (!MSD2Attached) {
 			writeSPI1(6);
@@ -901,9 +933,9 @@ void GetBTCommand(const char character) {
 			if (MSD3Attached) {
 				writeSPI1(4);
 				USB3Selected = 1;
-				currentDrv = 2;
-				strncpy(root, "2:", 3);
-				SendFiles(currentDrv);
+				listbuff.src = 2;
+				strncpy(listbuff.srcroot, "2:", 3);
+		//		read_contents(root);
 			}
 			else if (!MSD3Attached) {
 				writeSPI1(6);
@@ -912,12 +944,13 @@ void GetBTCommand(const char character) {
 
 		else if (character == 'H' && renaming == 0) { // USB 4 Selected
 			InitSelected();
+		//	writeSPI1(8);
  			if (MSD4Attached) {
 				writeSPI1(4);
 				USB4Selected = 1;
-				currentDrv = 3;
-				strncpy(root, "3:", 3);
-				SendFiles(currentDrv);
+				listbuff.src = 3;
+				strncpy(listbuff.srcroot, "3:", 3);
+		//		read_contents(root);
 			}
 			else if (!MSD4Attached) {
 				writeSPI1(6);
@@ -933,14 +966,15 @@ void GetBTCommand(const char character) {
 			if (RXdone) {			
 				index = atoi(rxstring);
 				memset(rxstring, 0, sizeof(rxstring));
-				strncpy(selectfile[k], directory[currentDrv].dirfiles[index-1], strlen(directory[currentDrv].dirfiles[index-1])+1);
-				strncpy(selectpath[m], root, strlen(root)+1);
-				strncat(selectpath[m], selectfile[k], strlen(selectfile[k])+3);
-				strncpy(selection[k].root, root, 3);
-				strncpy(selection[k].selectfile, selectfile[k], strlen(selectfile[k])+1);
-				strncpy(selection[k].selectpath, selectpath[m], strlen(selectpath[m])+1);
-				k++;
-				m++;
+				strncpy(listbuff.srcfile, directory[listbuff.src].dirfiles[index], strlen(directory[listbuff.src].dirfiles[index])+1);
+				strncpy(listbuff.srcpath, listbuff.srcroot, strlen(listbuff.srcroot)+1);
+				strncat(listbuff.srcpath, listbuff.srcfile, strlen(listbuff.srcfile)+3);
+				DBPRINTF("%s %s", listbuff.srcfile, listbuff.srcpath);
+		//		strncpy(selection[k].root, root, 3);
+		//		strncpy(selection[k].selectfile, selectfile[k], strlen(selectfile[k])+1);
+		//		strncpy(selection[k].selectpath, selectpath[m], strlen(selectpath[m])+1);
+		//		k++;
+		//		m++;
 			RXdone = 0;
 			}
 		}
@@ -949,29 +983,25 @@ void GetBTCommand(const char character) {
 
 		// MSD1 chosen
 		else if (character == 'm' && renaming == 0) {
-			strncpy(destdrv[d], "0:", 3);
-			dest[d] = 0;
+			strncpy(listbuff.destdrv[d], "0:", 3);
 			d++;
 		}
 
 		// MSD2 chosen
 		else if (character == 'n' && renaming == 0) {
-			strncpy(destdrv[d], "1:", 3);
-			dest[d] = 1;
+			strncpy(listbuff.destdrv[d], "1:", 3);
 			d++;
 		}
 
 		// MSD3 chosen
 		else if (character == 'o' && renaming == 0) {
-			strncpy(destdrv[d], "2:", 3);
-			dest[d] = 2;
+			strncpy(listbuff.destdrv[d], "2:", 3);
 			d++;
 		}
 
 		// MSD4 chosen
 		else if (character == 'p' && renaming == 0) {
-			strncpy(destdrv[d], "3:", 3);
-			dest[d] = 3;
+			strncpy(listbuff.destdrv[d], "3:", 3);
 			d++;
 		}
 
@@ -983,22 +1013,19 @@ void GetBTCommand(const char character) {
 		StartCount = ReadCoreTimer();
 			for (n = 0; n < k; n++) {
 			    mPORTBClearBits(BIT_0 | BIT_1); 
-				for (b=0; b<d; b++) {
-					strncpy(destpath[b], destdrv[b], 3);
-					strncat(destpath[b], selection[n].selectfile, strlen(selection[n].selectfile)+3);
-				}
-			
-		//	unsigned long endTime = FILETIME_MS((ReadCoreTimer()-StartCount));
-		//	DBPRINTF("s %lu ", endTime);
-				if (d==1) {
-				res = f_copy(selection[n].selectfile, selection[n].selectpath, destpath[0], "", "");
-				}
-				else if (d==2) {
-				res = f_copy(selection[n].selectfile, selection[n].selectpath, destpath[0], destpath[1], "");
-				}
-				else if (d==3) {
-				res = f_copy(selection[n].selectfile, selection[n].selectpath, destpath[0], destpath[1], destpath[2]);
-				}
+			//	for (b=0; b<d; b++) {
+			//		strncpy(destpath[b], destdrv[b], 3);
+			//		strncat(destpath[b], selection[n].selectfile, strlen(selection[n].selectfile)+3);
+			//	}
+			//	if (d==1) {
+			//	res = f_copy(selection[n].selectpath, destpath[0], "", "");
+			//	}
+			//	else if (d==2) {
+			//	res = f_copy(selection[n].selectpath, destpath[0], destpath[1], "");
+			//	}
+			//	else if (d==3) {
+				res = f_copy(selection[n].selectpath, selection[n].destpaths[0], selection[n].destpaths[1], selection[n].destpaths[2]);
+			//	}
 				if (res == FR_OK) {	
 				//	DBPRINTF("d");
 					mPORTBSetBits(BIT_0);
@@ -1010,10 +1037,10 @@ void GetBTCommand(const char character) {
 			}
 //		FileTime = (ReadCoreTimer()-StartCount)/40000L;
 		FileTime = FILETIME_MS((ReadCoreTimer()-StartCount));
+		SendDataBuffer("t/", strlen("t/"));
 		DBPRINTF("t %lu\n", FileTime);
 		mPORTBClearBits(BIT_2);
 		writeSPI1(12);
-		ReloadDirectories();
 		ClearSelection();
 		}
 
@@ -1040,7 +1067,6 @@ void GetBTCommand(const char character) {
 		DBPRINTF("t %lu\n", FileTime);
 		mPORTBClearBits(BIT_2);
 		writeSPI1(12);
-		ReloadDirectories();
 		ClearSelection();
 		}
 
@@ -1052,19 +1078,19 @@ void GetBTCommand(const char character) {
 		StartCount = ReadCoreTimer();
 		for (n = 0; n < k; n++) {
 				mPORTBClearBits(BIT_0 | BIT_1); 
-				for (b=0; b<d; b++) {
-					strncpy(destpath[b], destdrv[b], 3);
-					strncat(destpath[b], selection[n].selectfile, strlen(selection[n].selectfile)+3);
-				}
-				if (d==1) {
-				res = f_copy(selection[n].selectfile, selection[n].selectpath, destpath[0], "", "");
-				}
-				else if (d==2) {
-				res = f_copy(selection[n].selectfile, selection[n].selectpath, destpath[0], destpath[1], "");
-				}
-				else if (d==3) {
-				res = f_copy(selection[n].selectfile, selection[n].selectpath, destpath[0], destpath[1], destpath[2]);
-				}
+			//	for (b=0; b<d; b++) {
+			//		strncpy(destpath[b], destdrv[b], 3);
+			//		strncat(destpath[b], selection[n].selectfile, strlen(selection[n].selectfile)+3);
+			//	}
+			//	if (d==1) {
+			//	res = f_copy(selection[n].selectpath, destpath[0], "", "");
+			//	}
+			//	else if (d==2) {
+			//	res = f_copy(selection[n].selectpath, destpath[0], destpath[1], "");
+			//	}
+			//	else if (d==3) {
+				res = f_copy(selection[n].selectpath, selection[n].destpaths[0], selection[n].destpaths[1], selection[n].destpaths[2]);
+			//	}
 				if (res == FR_OK) {
 				//	DBPRINTF("d");
 					res = f_unlink(selection[n].selectpath);
@@ -1087,7 +1113,6 @@ void GetBTCommand(const char character) {
 		DBPRINTF("t %lu\n", FileTime);
 		mPORTBClearBits(BIT_2);
 		writeSPI1(12);
-		ReloadDirectories();
 		ClearSelection();
 		}
 
@@ -1130,21 +1155,22 @@ void GetBTCommand(const char character) {
 			renaming = 0;
 			memset(oldname, 0, sizeof(oldname));
 			memset(newname, 0, sizeof(newname));
-			ReloadDirectories();
 			ClearSelection();
 			}
 		}
 
 		else if (character == 's' && renaming == 0) { // RENAME CANCELLED
 		renaming = 0;
+		ClearSelection();
+		ClearBuff();
 		}
 
 		// CLEAR SELECTION
 
 		else if (character == 'k' && renaming == 0) {
 
-			ReloadDirectories();
 			InitSelected();
+			ClearBuff();
 			ClearSelection();
 
 		}		
@@ -1152,49 +1178,45 @@ void GetBTCommand(const char character) {
 		else if (character == 'l' && renaming == 0) {
 
 		writeSPI1(14);
-		SendFiles(0);
 
+		}
+
+		// READ DIRECTORIES
+		else if (character == 'D' && renaming == 0) {
+
+			ReloadDirectories();
+			SendFiles();
+		}
+
+
+		// ADD FILES TO SELECTION LIST
+		else if (character == 'A' && renaming == 0) {
+			int y = 0, z =0;
+			memset(selection[k].destpaths[0], "", sizeof(selection[k].destpaths[0]));
+			memset(selection[k].destpaths[1], "", sizeof(selection[k].destpaths[1]));
+			memset(selection[k].destpaths[2], "", sizeof(selection[k].destpaths[2]));
+			selection[k].drv = listbuff.src;
+			strncpy(selection[k].root, listbuff.srcroot, strlen(listbuff.srcroot)+1);
+			strncpy(selection[k].selectfile, listbuff.srcfile, strlen(listbuff.srcfile)+1);
+			strncpy(selection[k].selectpath, listbuff.srcpath, strlen(listbuff.srcpath)+1);
+			for (y = 0; y<d; y++) {
+				strncpy(selection[k].dest[y], listbuff.destdrv[y], strlen(listbuff.destdrv[y])+1);
+			//	strncat(selection[k].dest[y], ":", strlen(":")+1);
+				strncpy(selection[k].destpaths[y], listbuff.destdrv[y], strlen(listbuff.destdrv[y])+1);
+				strncat(selection[k].destpaths[y], listbuff.srcfile, strlen(listbuff.srcfile)+1);
+			}
+				
+			DBPRINTF("%s %s %s %s\n", selection[k].selectfile, selection[k].selectpath, selection[k].destpaths[0], selection[k].destpaths[1]);
+			k++;
+			ClearBuff();
 		}
 
 		DelayMs(10);
 		mPORTBClearBits(BIT_0 | BIT_1); 
-}
-/*
-void RenameFile(void) {
 
-			renaming = 1;
-			UART_RxString(character);
-			if (RXdone) {
-				strncpy(newname, rxstring, strlen(rxstring));
-				strncat(newname, ext, strlen(ext)+1);
-				memset(rxstring, 0, sizeof(rxstring));
-				memset(ext, 0, sizeof(ext));
-				StartCount = ReadCoreTimer();
-				res = f_rename(oldname, newname);
-				if (res == FR_OK) {
-					mPORTBSetBits(BIT_0);
-				//	DBPRINTF("d\n");
-				}
-				else {
-					mPORTBSetBits(BIT_1);
-				//	DBPRINTF("f\n");
-					}
-	//		FileTime = (ReadCoreTimer()-StartCount)/40000L;
-			FileTime = FILETIME_MS((ReadCoreTimer()-StartCount));
-			DBPRINTF("t %lu\n", FileTime);
-			mPORTBClearBits(BIT_2);
-			writeSPI1(12);
-			RXdone = 0;
-			renaming = 0;
-			memset(oldname, 0, sizeof(oldname));
-			memset(newname, 0, sizeof(newname));
-			ReloadDirectories();
-			ClearSelection();
-			}
-		}
 
 }
-*/
+
 /*-----------------------------------------------------------------------*/
 /* SPI AND UART FUNCTIONS							                     */
 /*-----------------------------------------------------------------------*/
