@@ -48,8 +48,8 @@ Company:         Microchip Technology, Inc.
 Software License Agreement
 
 The software supplied herewith by Microchip Technology Incorporated
-(the Company) for its PICmicro® Microcontroller is intended and
-supplied to you, the Companys customer, for use solely and
+(the ?Company?) for its PICmicro® Microcontroller is intended and
+supplied to you, the Company?s customer, for use solely and
 exclusively on Microchip PICmicro Microcontroller products. The
 software is owned by the Company and/or its supplier, and is
 protected under applicable copyright laws. All rights are reserved.
@@ -58,7 +58,7 @@ user to criminal sanctions under applicable laws, as well as to
 civil liability for the breach of the terms and conditions of this
 license.
 
-THIS SOFTWARE IS PROVIDED IN AN AS IS CONDITION. NO WARRANTIES,
+THIS SOFTWARE IS PROVIDED IN AN ?AS IS? CONDITION. NO WARRANTIES,
 WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING, BUT NOT LIMITED
 TO, IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
 PARTICULAR PURPOSE APPLY TO THIS SOFTWARE. THE COMPANY SHALL NOT,
@@ -79,6 +79,7 @@ Change History:
 #include "HardwareProfile.h"
 #include "USB\usb.h"
 #include "USB\usb_host_msd.h"
+#include "USB\usb_host_msd_scsi.h"
 
 //#define DEBUG_MODE
 #ifdef DEBUG_MODE
@@ -339,7 +340,6 @@ extern CLIENT_DRIVER_TABLE usbMediaInterfaceTable;  // This table contains the i
 static DWORD                       dCBWTagNext     = 0x12345678ul;
 static USB_MSD_DEVICE_INFO         deviceInfoMSD[USB_MAX_MASS_STORAGE_DEVICES] __attribute__ ((aligned));
 
-
 // *****************************************************************************
 // *****************************************************************************
 // Section: Application Callable Functions
@@ -396,7 +396,7 @@ BYTE USBHostMSDDeviceStatus( BYTE deviceAddress )
         return USB_MSD_DEVICE_NOT_FOUND;
     }
 
-    status = USBHostDeviceStatus( deviceAddress );
+    status = USBHostDeviceStatus( deviceAddress - 1 );
     if (status != USB_DEVICE_ATTACHED)
     {
         return status;
@@ -565,11 +565,11 @@ void USBHostMSDTasks( void )
     BYTE    errorCode;
     BYTE    i;
 
-	DBPRINTF("USBHostMSDTasks()\n");
+	//DBPRINTF("USBHostMSDTasks()\n");
 
     for (i=0; i<USB_MAX_MASS_STORAGE_DEVICES; i++)
     {
-		if (deviceInfoMSD[i].deviceAddress != 0)
+ 		if (deviceInfoMSD[i].deviceAddress != 0)
         {
             switch (deviceInfoMSD[i].state & STATE_MASK)
             {
@@ -582,7 +582,7 @@ void USBHostMSDTasks( void )
                     switch (deviceInfoMSD[i].state & SUBSTATE_MASK)
                     {
                         case SUBSTATE_WAIT_FOR_ENUMERATION:
-                            if (USBHostDeviceStatus( deviceInfoMSD[i].deviceAddress ) == USB_DEVICE_ATTACHED)
+                            if (USBHostDeviceStatus( deviceInfoMSD[i].deviceAddress - 1 ) == USB_DEVICE_ATTACHED)
                             {
                                 _USBHostMSD_SetNextSubState();
                                 #ifdef DEBUG_MODE
@@ -654,9 +654,6 @@ void USBHostMSDTasks( void )
                             break;
 
                         case SUBSTATE_SEND_CBW:
-                            #ifdef DEBUG_MODE
-                                UART2PrintString( "MSD: Writing CBW\r\n" );
-                            #endif
                             errorCode = USBHostWrite( deviceInfoMSD[i].deviceAddress, deviceInfoMSD[i].endpointOUT, deviceInfoMSD[i].blockData, CBW_SIZE );
                             if (errorCode)
                             {
@@ -707,11 +704,8 @@ void USBHostMSDTasks( void )
                             break;
 
                         case SUBSTATE_TRANSFER_DATA:
-                            #ifdef DEBUG_MODE
-                                UART2PrintString( "MSD: Transferring data, length ");
-                                UART2PutHexDWord( deviceInfoMSD[i].userDataLength );
-                                UART2PrintString( "\r\n" );
-                            #endif
+                            //    DBPRINTF( "MSD: Transferring data, length ");
+                            //    DBPRINTF( " %x\r\n", deviceInfoMSD[i].userDataLength );
                             if (deviceInfoMSD[i].userDataLength == 0)
                             {
                                 deviceInfoMSD[i].state = STATE_RUNNING | SUBSTATE_REQUEST_CSW;
@@ -783,7 +777,6 @@ void USBHostMSDTasks( void )
                             #ifdef DEBUG_MODE
                                 UART2PrintString( "MSD: Getting CSW\r\n" );
                             #endif
-
                             errorCode = USBHostRead( deviceInfoMSD[i].deviceAddress, deviceInfoMSD[i].endpointIN, deviceInfoMSD[i].blockData, CSW_SIZE );
                             if (errorCode)
                             {
@@ -792,6 +785,7 @@ void USBHostMSDTasks( void )
                             else
                             {
                                 _USBHostMSD_SetNextSubState();
+							
                             }
                             break;
 
@@ -1700,6 +1694,7 @@ BOOL USBHostMSDEventHandler( BYTE address, USB_EVENT event, void *data, DWORD si
                             // returning to normal running.
                             if (((USB_MSD_CSW *)(deviceInfoMSD[i].blockData))->dCSWStatus == MSD_PHASE_ERROR)
                             {
+
                                 deviceInfoMSD[i].flags.val |= MARK_RESET_RECOVERY;
                                 deviceInfoMSD[i].returnState = STATE_RUNNING;
                                 _USBHostMSD_ResetStateJump( i );
@@ -1923,5 +1918,3 @@ void _USBHostMSD_ResetStateJump( BYTE i )
 
     }
 }
-
-
