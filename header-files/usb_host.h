@@ -447,7 +447,6 @@ extern BYTE                *pDeviceDescriptor;                  // Pointer to th
 extern USB_TPL              usbTPL[];                           // Application's Targeted Peripheral List.
 extern CLIENT_DRIVER_TABLE  usbClientDrvTable[];                // Application's client driver table.
 
-
 // *****************************************************************************
 // *****************************************************************************
 // Section: Function Prototypes and Macro Functions
@@ -572,7 +571,7 @@ BOOL    USBHostDeviceSpecificClientDriver( BYTE deviceAddress );
     None
   ***************************************************************************/
 
-BYTE    USBHostDeviceStatus( BYTE deviceAddress );
+BYTE    USBHostDeviceStatus( BYTE DeviceNumber );
 
 
 /****************************************************************************
@@ -735,7 +734,7 @@ BYTE    USBHostDeviceStatus( BYTE deviceAddress );
     application.
   ***************************************************************************/
 
-BOOL USBHostInit(  unsigned long flags  );
+BOOL USBHostInit(  BYTE DeviceNumber  );
 
 
 /****************************************************************************
@@ -1171,7 +1170,7 @@ BYTE USBHostSetNAKTimeout( BYTE deviceAddress, BYTE endpoint, WORD flags, WORD t
     None
   ***************************************************************************/
 
-void    USBHostShutdown( void );
+void    USBHostShutdown( BYTE DeviceNumber );
 
 
 /****************************************************************************
@@ -1506,6 +1505,33 @@ void _USB_Port_SetHoldState( BYTE DeviceNumber );
 void  _USB_Port_SetNextState( BYTE DeviceNumber );
 void  _USB_Port_SetNextSubState( BYTE DeviceNumber );
 void  _USB_Port_SetNextSubSubState( BYTE DeviceNumber );
+void  _USB_SetNextSubSubState( BYTE DeviceNumber );
+
+/****************************************************************************
+  Function:
+    BYTE USBReturnDeviceAddress( BYTE DeviceNumber )
+
+  Summary:
+    This function returns the address of the device.
+
+  Description:
+    This function returns the address of the device to be called for USBHostHubDeviceDetect().
+
+  Precondition:
+    None
+
+  Parameters:
+    BYTE DeviceNumber  - Port number of the device
+
+  Return Values:
+	deviceAddress - Address given to the device (DeviceNumber + 1)    
+
+  Remarks:
+    None
+  ***************************************************************************/
+
+BYTE USBReturnDeviceAddress ( BYTE DeviceNumber );
+BYTE USBHostDeviceDetach ( BYTE DevAddr );
 
 // *****************************************************************************
 // EOF
