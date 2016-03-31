@@ -29,8 +29,8 @@ Company:         Microchip Technology, Inc.
 Software License Agreement
 
 The software supplied herewith by Microchip Technology Incorporated
-(the Company) for its PICmicro® Microcontroller is intended and
-supplied to you, the Companys customer, for use solely and
+(the ?Company?) for its PICmicro® Microcontroller is intended and
+supplied to you, the Company?s customer, for use solely and
 exclusively on Microchip PICmicro Microcontroller products. The
 software is owned by the Company and/or its supplier, and is
 protected under applicable copyright laws. All rights are reserved.
@@ -39,7 +39,7 @@ user to criminal sanctions under applicable laws, as well as to
 civil liability for the breach of the terms and conditions of this
 license.
 
-THIS SOFTWARE IS PROVIDED IN AN AS IS CONDITION. NO WARRANTIES,
+THIS SOFTWARE IS PROVIDED IN AN ?AS IS? CONDITION. NO WARRANTIES,
 WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING, BUT NOT LIMITED
 TO, IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
 PARTICULAR PURPOSE APPLY TO THIS SOFTWARE. THE COMPANY SHALL NOT,
@@ -58,11 +58,13 @@ Change History:
 #include "GenericTypeDefs.h"
 #include "HardwareProfile.h"
 #include "FSconfig.h"
-#include "MDD File System\FSDefs.h"
-#include "MDD File System\FSIO.h"
+//#include "MDD File System\FSDefs.h"
+//#include "MDD File System\FSIO.h"
 #include "USB\usb.h"
 #include "USB\usb_host_msd.h"
 #include "USB\usb_host_msd_scsi.h"
+#include "USB\usb_host.h"
+#include "usb_host_hub.h"
 
 //#define DEBUG_MODE
 #if defined(DEBUG_MODE)
@@ -117,6 +119,7 @@ Change History:
 
 static BYTE                deviceAddress[USB_MAX_DRIVES];  // USB address of the attached device.
 static MEDIA_INFORMATION   mediaInformation[USB_MAX_DRIVES];   // Information about the attached media.
+unsigned long startcount, end;
 
 // *****************************************************************************
 // *****************************************************************************
@@ -270,7 +273,7 @@ BOOL USBHostMSDSCSIEventHandler( BYTE driveNumber, BYTE address, USB_EVENT event
 // MODIFICATION 1/14/2016
 BYTE USBHostMSDSCSIMediaDetect( BYTE driveNumber )
 {
-    if (USBHostMSDDeviceStatus( deviceAddress[driveNumber] ) == USB_MSD_NORMAL_RUNNING)
+	if (USBHostMSDDeviceStatus( deviceAddress[driveNumber] ) == USB_MSD_NORMAL_RUNNING)
     {
         return TRUE;
     }
@@ -380,7 +383,7 @@ MEDIA_INFORMATION * USBHostMSDSCSIMediaInitialize( BYTE driveNumber )
         {
             while (!USBHostMSDTransferIsComplete( deviceAddress[driveNumber], &errorCode, &byteCount ))
             {
-                USBTasks(deviceAddress[driveNumber]); // MODIFICATION 1/13/2016
+                USBTasks(driveNumber + 1); // MODIFICATION 1/13/2016
             }
         }
 
@@ -431,7 +434,7 @@ MEDIA_INFORMATION * USBHostMSDSCSIMediaInitialize( BYTE driveNumber )
             {
                 while (!USBHostMSDTransferIsComplete( deviceAddress[driveNumber], &errorCode, &byteCount ))
                 {
-                    USBTasks(deviceAddress[driveNumber]); // MODIFICATION 1/12/2016
+                    USBTasks(driveNumber + 1); // MODIFICATION 1/12/2016
                 }
             }
         }
@@ -482,7 +485,7 @@ BYTE USBHostMSDSCSIMediaReset( BYTE driveNumber  )
 
     do
     {
-        USBTasks(deviceAddress[driveNumber]); // MODIFICATION 1/12/2016
+        USBTasks(driveNumber + 1); // MODIFICATION 1/12/2016
         errorCode = USBHostMSDDeviceStatus( deviceAddress[driveNumber] );
     } while (errorCode == USB_MSD_RESETTING_DEVICE);
 
@@ -542,18 +545,16 @@ BYTE USBHostMSDSCSISectorRead( BYTE driveNumber, DWORD sectorAddress, BYTE *data
     DWORD   byteCount;
     BYTE    commandBlock[10];
     BYTE    errorCode;
-
-    #ifdef DEBUG_MODE
-        UART2PrintString( "SCSI: Reading sector " );
-        UART2PutHex(sectorAddress >> 24);
-        UART2PutHex(sectorAddress >> 16);
-        UART2PutHex(sectorAddress >> 8);
-        UART2PutHex(sectorAddress);
-        UART2PrintString( " Device " );
-        UART2PutHex(deviceAddress);
-        UART2PrintString( "\r\n" );
-    #endif
-
+/*
+        DBPRINTF( "SCSI: Reading sector " );
+        DBPRINTF("%x", sectorAddress >> 24);
+        DBPRINTF("%x", sectorAddress >> 16);
+        DBPRINTF("%x", sectorAddress >> 8);
+        DBPRINTF("%x", sectorAddress);
+        DBPRINTF( " Device " );
+        DBPRINTF("x", deviceAddress);
+        DBPRINTF( "\r\n" );
+*/
     if (deviceAddress[driveNumber] == 0)
     {
         return FALSE;       // USB_MSD_DEVICE_NOT_FOUND;
@@ -568,6 +569,7 @@ BYTE USBHostMSDSCSISectorRead( BYTE driveNumber, DWORD sectorAddress, BYTE *data
     commandBlock[5] = (BYTE) (sectorAddress);
     commandBlock[6] = 0x00;     // Group Number
     commandBlock[7] = 0x00;     // Number of blocks - Big endian!
+//    commandBlock[8] = 0x01;
     commandBlock[8] = 0x01;
     commandBlock[9] = 0x00;     // Control
 
@@ -583,7 +585,8 @@ BYTE USBHostMSDSCSISectorRead( BYTE driveNumber, DWORD sectorAddress, BYTE *data
     {
         while (!USBHostMSDTransferIsComplete( deviceAddress[driveNumber], &errorCode, &byteCount ))
         {
-            USBTasks(driveNumber); // MODIFICATION 1/12/2016
+            USBHostTasks(driveNumber + 1); // MODIFICATION 1/12/2016
+			USBHostMSDTasks();
         }
     }
 
@@ -595,6 +598,7 @@ BYTE USBHostMSDSCSISectorRead( BYTE driveNumber, DWORD sectorAddress, BYTE *data
 
     if (!errorCode)
     {
+		
         return TRUE;
     }
     else
@@ -653,7 +657,7 @@ BYTE USBHostMSDSCSISectorWrite( BYTE driveNumber, DWORD sectorAddress, BYTE *dat
     DWORD   byteCount;
     BYTE    commandBlock[10];
     BYTE    errorCode;
-
+	
     #ifdef DEBUG_MODE
         UART2PrintString( "SCSI: Writing sector " );
         UART2PutHex(sectorAddress >> 24);
@@ -699,7 +703,8 @@ BYTE USBHostMSDSCSISectorWrite( BYTE driveNumber, DWORD sectorAddress, BYTE *dat
     {
         while (!USBHostMSDTransferIsComplete( deviceAddress[driveNumber], &errorCode, &byteCount ))
         {
-            USBTasks(deviceAddress[driveNumber]);  // MODIFICATION 1/12/2016
+            USBHostTasks(driveNumber + 1); // MODIFICATION 1/12/2016
+			USBHostMSDTasks();
         }
     }
 
@@ -795,7 +800,7 @@ BOOL _USBHostMSDSCSI_TestUnitReady( void )
         {
             while (!USBHostMSDTransferIsComplete( deviceAddress, &errorCode, &byteCount ))
             {
-                USBTasks();
+                USBTasks(deviceAddress - 1);
             }
         }
         #ifdef DEBUG_MODE
@@ -812,130 +817,228 @@ BOOL _USBHostMSDSCSI_TestUnitReady( void )
 }
 #endif
 
-// MODIFICATION 1/13/2016
-/*******************************************************************************
+/****************************************************************************
   Function:
-    BYTE _USBHostMSDSCSI_Mode_Sense_6( BYTE pageCode, BYTE subpageCode, BYTE *data, BYTE dataLength )
+    BYTE USBHostMSDSCSISectorRead( DWORD sectorAddress, BYTE *dataBuffer)
+
+  Summary:
+    This function reads one sector.
+
+  Description:
+    This function uses the SCSI command READ10 to read one sector.  The size
+    of the sector was determined in the USBHostMSDSCSIMediaInitialize()
+    function.  The data is stored in the application buffer.
 
   Precondition:
     None
 
-  Overview:
-    This function sends MODE SENSE 6 SCSI command
-
   Parameters:
-    None - None
+    DWORD   sectorAddress   - address of sector to read
+    BYTE    *dataBuffer     - buffer to store data
 
   Return Values:
-    TRUE    - Command completed without error
-    FALSE   - Error while performing command
+    TRUE    - read performed successfully
+    FALSE   - read was not successful
 
   Remarks:
-    The format of the TEST UNIT READY command is as follows:
+    The READ10 command block is as follows:
 
     <code>
         Byte/Bit    7       6       5       4       3       2       1       0
-           0                    Operation Code (0x00)
-           1        [
-           2                               Reserved
-           3
-           4                                                                ]
-           5        [                    Control                            ]
+           0                    Operation Code (0x28)
+           1        [    RDPROTECT      ]  DPO     FUA      -     FUA_NV    -
+           2        [ (MSB)
+           3                        Logical Block Address
+           4
+           5                                                          (LSB) ]
+           6        [         -         ][          Group Number            ]
+           7        [ (MSB)         Transfer Length
+           8                                                          (LSB) ]
+           9        [                    Control                            ]
     </code>
   ***************************************************************************/
 
-BYTE _USBHostMSDSCSI_Mode_Sense_6( BYTE driveNumber, BYTE pageCode, BYTE subpageCode, BYTE *data, BYTE dataLength )
+BYTE USBHostMSDSCSIMultiSectorRead( BYTE driveNumber, DWORD sectorAddress, BYTE *dataBuffer, BYTE count, DWORD sectorCount )
 {
-    
-#define FIXED_LUN               0
-#define MODE_SENSE6_CMD_SIZE    6
-    
-    BYTE    commandBlock[MODE_SENSE6_CMD_SIZE];
-    BYTE    errorCode;
     DWORD   byteCount;
-    
-    // Issue a MODE_SENSE(6)
-    // Fill in the command block with the MODE_SENSE(6) parameters.
-    commandBlock[0] = 0x1A; // Operation Code: Mode Sense(6)
-    commandBlock[1] = 0x00; // Reserved / DBD (bit3) / Reserved
-    commandBlock[2] = pageCode;
-    commandBlock[3] = subpageCode;
-    commandBlock[4] = dataLength;
-    commandBlock[5] = 0x00; // Control
-    
-    if (driveNumber == 1) {
-        errorCode = USBHostMSDRead(2, FIXED_LUN, commandBlock, MODE_SENSE6_CMD_SIZE, data, (DWORD)dataLength);
+    BYTE    commandBlock[10];
+    BYTE    errorCode;
+	//DWORD	sectorCount;
+/*
+        DBPRINTF( "SCSI: Reading sector " );
+        DBPRINTF("%x", sectorAddress >> 24);
+        DBPRINTF("%x", sectorAddress >> 16);
+        DBPRINTF("%x", sectorAddress >> 8);
+        DBPRINTF("%x", sectorAddress);
+        DBPRINTF( " Device " );
+        DBPRINTF("x", deviceAddress);
+        DBPRINTF( "\r\n" );
+*/
+    if (deviceAddress[driveNumber] == 0)
+    {
+        return FALSE;       // USB_MSD_DEVICE_NOT_FOUND;
     }
-    if (driveNumber == 2) {
-        errorCode = USBHostMSDRead(3, FIXED_LUN, commandBlock, MODE_SENSE6_CMD_SIZE, data, (DWORD)dataLength);
-    }
-    if (driveNumber == 3) {
-        errorCode = USBHostMSDRead(4, FIXED_LUN, commandBlock, MODE_SENSE6_CMD_SIZE, data, (DWORD)dataLength);
-    }
-    if (driveNumber == 4) {
-        errorCode = USBHostMSDRead(5, FIXED_LUN, commandBlock, MODE_SENSE6_CMD_SIZE, data, (DWORD)dataLength);
-    }
-#ifdef DEBUG_MODE
-    UART2PutHex( errorCode );
-    UART2PutChar( '' );
-#endif
-  
-    if(!errorCode) {
-        while ((!USBHostMSDTransferIsComplete(2, &errorCode, &byteCount) && (driveNumber == 1))) {
-            USBTasks(2);
+    // Fill in the command block with the READ10 parameters.
+    commandBlock[0] = 0x28;     // Operation code
+    commandBlock[1] = RDPROTECT_NORMAL | FUA_ALLOW_CACHE;
+    commandBlock[2] = (BYTE) (sectorAddress >> 24);     // Big endian!
+    commandBlock[3] = (BYTE) (sectorAddress >> 16);
+    commandBlock[4] = (BYTE) (sectorAddress >> 8);
+    commandBlock[5] = (BYTE) (sectorAddress);
+    commandBlock[6] = 0x00;     // Group Number
+    commandBlock[7] = 0x00;     // Number of blocks - Big endian!
+//    commandBlock[8] = 0x01;
+    commandBlock[8] = count;
+    commandBlock[9] = 0x00;     // Control
+
+    // Currently using LUN=0.  When the File System supports multiple LUN's, this will change.
+    errorCode = USBHostMSDRead( deviceAddress[driveNumber], 0, commandBlock, 10, dataBuffer, sectorCount );
+    #ifdef DEBUG_MODE
+        UART2PrintString( "SCSI: Read sector init error " );
+        UART2PutHex( errorCode );
+        UART2PrintString( "\r\n" );
+    #endif
+
+    if (!errorCode)
+    {
+        while (!USBHostMSDTransferIsComplete( deviceAddress[driveNumber], &errorCode, &byteCount ))
+        {
+            USBHostTasks(driveNumber + 1); // MODIFICATION 1/12/2016
+			USBHostMSDTasks();
         }
-        
-        while ((!USBHostMSDTransferIsComplete(3, &errorCode, &byteCount) && (driveNumber == 2))) {
-            USBTasks(3);
-        }
-        
-        while ((!USBHostMSDTransferIsComplete(4, &errorCode, &byteCount) && (driveNumber == 3))) {
-            USBTasks(4);
-        }
-        
-        while ((!USBHostMSDTransferIsComplete(5, &errorCode, &byteCount) && (driveNumber == 4))) {
-            USBTasks(5);
-        }
     }
-    return errorCode;
+
+    #ifdef DEBUG_MODE
+        UART2PrintString( "SCSI: Read sector error " );
+        UART2PutHex( errorCode );
+        UART2PrintString( "\r\n" );
+    #endif
+
+    if (!errorCode)
+    {
+        return TRUE;
     }
-    
-#define MODESENSE_PAGECODE_RETURN_ALL_SUBPAGE   0x3F
-#define MODESENSE_SUBPAGE_RETURN_ALL_SUBPAGE    0x00
-#define MODESENSE_DATA_SIZE                     0x04
+    else
+    {
+//        USBHostMSDSCSIMediaReset();
+        return FALSE;
+    }
+}
 
 /****************************************************************************
   Function:
-    BYTE USBHostMSDSCSIWriteProtectState( void )
+    BYTE USBHostMSDSCSISectorWrite( DWORD sectorAddress, BYTE *dataBuffer, BYTE allowWriteToZero )
+
+  Summary:
+    This function writes one sector.
 
   Description:
-    This function returns the write protect status of the device.
+    This function uses the SCSI command WRITE10 to write one sector.  The size
+    of the sector was determined in the USBHostMSDSCSIMediaInitialize()
+    function.  The data is read from the application buffer.
 
   Precondition:
     None
 
   Parameters:
-    None - None
+    DWORD   sectorAddress   - address of sector to write
+    BYTE    *dataBuffer     - buffer with application data
+    BYTE    allowWriteToZero- If a write to sector 0 is allowed.
 
   Return Values:
-    0 - not write protected
-
+    TRUE    - write performed successfully
+    FALSE   - write was not successful
 
   Remarks:
-    None
+    To follow convention, this function blocks until the write is complete.
+
+    The WRITE10 command block is as follows:
+
+    <code>
+        Byte/Bit    7       6       5       4       3       2       1       0
+           0                    Operation Code (0x2A)
+           1        [    WRPROTECT      ]  DPO     FUA      -     FUA_NV    -
+           2        [ (MSB)
+           3                        Logical Block Address
+           4
+           5                                                          (LSB) ]
+           6        [         -         ][          Group Number            ]
+           7        [ (MSB)         Transfer Length
+           8                                                          (LSB) ]
+           9        [                    Control                            ]
+    </code>
   ***************************************************************************/
 
-BYTE    USBHostMSDSCSIWriteProtectState( BYTE driveNumber)
+BYTE USBHostMSDSCSIMultiSectorWrite( BYTE driveNumber, DWORD sectorAddress, BYTE *dataBuffer, BYTE allowWriteToZero , BYTE count, DWORD sectorCount)
 {
-    BYTE mode_data[MODESENSE_DATA_SIZE];
-    BYTE errorCode;
-    
-    errorCode = _USBHostMSDSCSI_Mode_Sense_6(driveNumber, MODESENSE_PAGECODE_RETURN_ALL_SUBPAGE, MODESENSE_SUBPAGE_RETURN_ALL_SUBPAGE, mode_data, MODESENSE_DATA_SIZE);
-    
-    if((mode_data[1] == 0x00) // Medium Type (must be 0)
-            && ((mode_data[2] & 0x80) == 0x00)) { // check write protect bit
-    
-        return FALSE;   // not write protected
+    DWORD   byteCount;
+    BYTE    commandBlock[10];
+    BYTE    errorCode;
+	
+    #ifdef DEBUG_MODE
+        UART2PrintString( "SCSI: Writing sector " );
+        UART2PutHex(sectorAddress >> 24);
+        UART2PutHex(sectorAddress >> 16);
+        UART2PutHex(sectorAddress >> 8);
+        UART2PutHex(sectorAddress);
+        UART2PrintString( " Device " );
+        UART2PutHex(deviceAddress);
+        UART2PrintString( "\r\n" );
+    #endif
+
+    if (deviceAddress[driveNumber] == 0)
+    {
+        return FALSE;   //USB_MSD_DEVICE_NOT_FOUND;
     }
-    return TRUE;    // write protected
+
+    if ((sectorAddress == 0) && (allowWriteToZero == FALSE))
+    {
+        return FALSE;
+    }
+
+    // Fill in the command block with the WRITE 10 parameters.
+    commandBlock[0] = 0x2A;     // Operation code
+    commandBlock[1] = WRPROTECT_NORMAL | FUA_ALLOW_CACHE;
+    commandBlock[2] = (BYTE) (sectorAddress >> 24);     // Big endian!
+    commandBlock[3] = (BYTE) (sectorAddress >> 16);
+    commandBlock[4] = (BYTE) (sectorAddress >> 8);
+    commandBlock[5] = (BYTE) (sectorAddress);
+    commandBlock[6] = 0x00;     // Group Number
+    commandBlock[7] = 0x00;     // Number of blocks - Big endian!
+//    commandBlock[8] = 0x01;
+  	commandBlock[8] = count;
+	commandBlock[9] = 0x00;     // Control
+
+    // Currently using LUN=0.  When the File System supports multiple LUN's, this will change.
+    errorCode = USBHostMSDWrite( deviceAddress[driveNumber], 0, commandBlock, 10, dataBuffer, sectorCount );
+    #ifdef DEBUG_MODE
+        UART2PrintString( "SCSI: Write sector init error " );
+        UART2PutHex( errorCode );
+        UART2PrintString( "\r\n" );
+    #endif
+
+    if (!errorCode)
+    {
+        while (!USBHostMSDTransferIsComplete( deviceAddress[driveNumber], &errorCode, &byteCount ))
+        {
+            USBHostTasks(driveNumber + 1); // MODIFICATION 1/12/2016
+			USBHostMSDTasks();
+        }
+    }
+
+    #ifdef DEBUG_MODE
+        UART2PrintString( "SCSI: Write sector error " );
+        UART2PutHex( errorCode );
+        UART2PrintString( "\r\n" );
+    #endif
+
+    if (!errorCode)
+    {
+        return TRUE;
+    }
+    else
+    {
+//        USBHostMSDSCSIMediaReset();
+        return FALSE;
+    }
 }
