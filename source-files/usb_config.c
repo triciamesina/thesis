@@ -73,10 +73,10 @@ CLIENT_DRIVER_TABLE usbClientDrvTable[] =
 USB_TPL usbTPL[] =
 {
     // idVendor, idProduct, bConfiguration, index of ClientDriver, flags(HNP,Class,Config)
-    { INIT_VID_PID( 0x04B4, 0x6572 ), 0, 0, {0} }, // CY4607
+    { INIT_VID_PID( 0x04B4, 0x6570 ), 0, 1, {0} }, // CY4607
     
     // bClass, bSubClass, bProtocol, bConfiguration, index of ClientDriver, flags(HNP,Class,Config)
     { INIT_CL_SC_P( 8ul, 6ul, 0x50ul ), 0, 0, {TPL_CLASS_DRV} }, // Thumbdrives
-    { INIT_CL_SC_P( 0x09ul, 0x00ul, 0x00ul ), 0, 0, {TPL_CLASS_DRV} } // Hub Class
+    { INIT_CL_SC_P( 0x09ul, 0x00ul, 0x00ul ), 0, 1, {TPL_CLASS_DRV} } // Hub Class
 };
 
