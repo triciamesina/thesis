@@ -26,7 +26,7 @@
 /  f_truncate and useless f_getfree. */
 
 
-#define _FS_MINIMIZE	3	/* 0 to 3 */
+#define _FS_MINIMIZE	0	/* 0 to 3 */
 /* The _FS_MINIMIZE option defines minimization level to remove some functions.
 /
 /   0: Full function.
@@ -36,7 +36,7 @@
 /   3: f_lseek is removed in addition to 2. */
 
 
-#define	_USE_STRFUNC	0	/* 0:Disable or 1/2:Enable */
+#define	_USE_STRFUNC	1	/* 0:Disable or 1/2:Enable */
 /* To enable string functions, set _USE_STRFUNC to 1 or 2. */
 
 
@@ -57,7 +57,7 @@
 / Locale and Namespace Configurations
 /----------------------------------------------------------------------------*/
 
-#define _CODE_PAGE	932
+#define _CODE_PAGE	1
 /* The _CODE_PAGE specifies the OEM code page to be used on the target system.
 /  Incorrect setting of the code page can cause a file open failure.
 /
@@ -91,7 +91,7 @@
 
 
 #define	_USE_LFN	0		/* 0 to 3 */
-#define	_MAX_LFN	255		/* Maximum LFN length to handle (12 to 255) */
+#define	_MAX_LFN	55		/* Maximum LFN length to handle (12 to 255) */
 /* The _USE_LFN option switches the LFN support.
 /
 /   0: Disable LFN feature. _MAX_LFN and _LFN_UNICODE have no effect.
@@ -104,6 +104,8 @@
 /  to the project. When enable to use heap, memory control functions
 /  ff_memalloc() and ff_memfree() must be added to the project. */
 
+void* ff_memalloc(UINT msize); /* Allocate memory block */
+void ff_memfree(void* mblock); /* Free memory block */
 
 #define	_LFN_UNICODE	0	/* 0:ANSI/OEM or 1:Unicode */
 /* To switch the character code set on FatFs API to Unicode,
@@ -125,7 +127,7 @@
 / Physical Drive Configurations
 /----------------------------------------------------------------------------*/
 
-#define _VOLUMES	1
+#define _VOLUMES	4
 /* Number of volumes (logical drives) to be used. */
 
 
@@ -181,9 +183,8 @@
 /      function must be added to the project. */
 
 
-#define	_FS_SHARE	0	/* 0:Disable or >=1:Enable */
+#define	_FS_SHARE	5	/* 0:Disable or >=1:Enable */
 /* To enable file shareing feature, set _FS_SHARE to 1 or greater. The value
    defines how many files can be opened simultaneously. */
-
 
 #endif /* _FFCONFIG */
