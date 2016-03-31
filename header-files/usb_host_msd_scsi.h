@@ -46,8 +46,8 @@ Summary:
 Software License Agreement
 
 The software supplied herewith by Microchip Technology Incorporated
-(the Company) for its PICmicro® Microcontroller is intended and
-supplied to you, the Companys customer, for use solely and
+(the “Company”) for its PICmicro® Microcontroller is intended and
+supplied to you, the Company’s customer, for use solely and
 exclusively on Microchip PICmicro Microcontroller products. The
 software is owned by the Company and/or its supplier, and is
 protected under applicable copyright laws. All rights are reserved.
@@ -56,7 +56,7 @@ user to criminal sanctions under applicable laws, as well as to
 civil liability for the breach of the terms and conditions of this
 license.
 
-THIS SOFTWARE IS PROVIDED IN AN AS IS CONDITION. NO WARRANTIES,
+THIS SOFTWARE IS PROVIDED IN AN “AS IS” CONDITION. NO WARRANTIES,
 WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING, BUT NOT LIMITED
 TO, IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
 PARTICULAR PURPOSE APPLY TO THIS SOFTWARE. THE COMPANY SHALL NOT,
@@ -411,4 +411,95 @@ BOOL USBHostMSDSCSIEventHandler( BYTE driveNumber, BYTE address, USB_EVENT event
 
 BYTE _USBHostMSDSCSI_Mode_Sense_6( BYTE driveNumber, BYTE pageCode, BYTE subpageCode, BYTE *data, BYTE dataLength );
 
+/****************************************************************************
+  Function:
+    BYTE USBHostMSDSCSIMSectorRead( DWORD sectorAddress, BYTE *dataBuffer)
+
+  Summary:
+    This function reads one sector.
+
+  Description:
+    This function uses the SCSI command READ10 to read one sector.  The size
+    of the sector was determined in the USBHostMSDSCSIMediaInitialize()
+    function.  The data is stored in the application buffer.
+
+  Precondition:
+    None
+
+  Parameters:
+    DWORD   sectorAddress   - address of sector to read
+    BYTE    *dataBuffer     - buffer to store data
+
+  Return Values:
+    TRUE    - read performed successfully
+    FALSE   - read was not successful
+
+  Remarks:
+    The READ10 command block is as follows:
+
+    <code>
+        Byte/Bit    7       6       5       4       3       2       1       0
+           0                    Operation Code (0x28)
+           1        [    RDPROTECT      ]  DPO     FUA      -     FUA_NV    -
+           2        [ (MSB)
+           3                        Logical Block Address
+           4
+           5                                                          (LSB) ]
+           6        [         -         ][          Group Number            ]
+           7        [ (MSB)         Transfer Length
+           8                                                          (LSB) ]
+           9        [                    Control                            ]
+    </code>
+  ***************************************************************************/
+
+BYTE    USBHostMSDSCSIMultiSectorRead( BYTE driveNumber, DWORD sectorAddress, BYTE *dataBuffer, BYTE count, DWORD sectorCount);
+/*
+/****************************************************************************
+  Function:
+    BYTE USBHostMSDSCSIMultiSectorWrite( DWORD sectorAddress, BYTE *dataBuffer, BYTE allowWriteToZero )
+
+  Summary:
+    This function writes one sector.
+
+  Description:
+    This function uses the SCSI command WRITE10 to write one sector.  The size
+    of the sector was determined in the USBHostMSDSCSIMediaInitialize()
+    function.  The data is read from the application buffer.
+
+  Precondition:
+    None
+
+  Parameters:
+    DWORD   sectorAddress   - address of sector to write
+    BYTE    *dataBuffer     - buffer with application data
+    BYTE    allowWriteToZero- If a write to sector 0 is allowed.
+
+  Return Values:
+    TRUE    - write performed successfully
+    FALSE   - write was not successful
+
+  Remarks:
+    To follow convention, this function blocks until the write is complete.
+
+    The WRITE10 command block is as follows:
+
+    <code>
+        Byte/Bit    7       6       5       4       3       2       1       0
+           0                    Operation Code (0x2A)
+           1        [    WRPROTECT      ]  DPO     FUA      -     FUA_NV    -
+           2        [ (MSB)
+           3                        Logical Block Address
+           4
+           5                                                          (LSB) ]
+           6        [         -         ][          Group Number            ]
+           7        [ (MSB)         Transfer Length
+           8                                                          (LSB) ]
+           9        [                    Control                            ]
+    </code>
+  ***************************************************************************/
+
+BYTE USBHostMSDSCSIMultiSectorWrite( BYTE driveNumber, DWORD sectorAddress, BYTE *dataBuffer,BYTE allowWriteToZero, BYTE count, DWORD sectorCount);
+
 #endif
+
+
